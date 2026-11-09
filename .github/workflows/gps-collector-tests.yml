@@ -22,3 +22,5 @@ jobs:
         run: python -m unittest discover -s services/gps-collector/tests -v
       - name: Run web alpha smoke tests (no network)
         run: python -m unittest discover -s apps/web/tests -p "*.py" -v
+      - name: Run outage-aware ETA model tests (synthetic data)
+        run: python -m unittest discover -s services/eta-engine/tests -v
