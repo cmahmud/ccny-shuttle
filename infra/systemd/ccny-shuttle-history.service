@@ -2,6 +2,7 @@
 Description=CCNY Shuttle validated GPS-to-stop history logger (not enabled until verified)
 After=ccny-shuttle-collector.service
 Requires=ccny-shuttle-collector.service
+ConditionPathExists=/etc/ccny-shuttle/verified-stops.json
 
 [Service]
 Type=simple
