@@ -46,3 +46,17 @@ See `../../docs/DEPLOYMENT.md` for verification and rollback.
 - CCNY: https://www.ccny.cuny.edu/about/gettingthere
 - Public viewer: https://cloud.samsara.com/o/4010168/fleet/viewer/FJMjrX1YlqCqlGxIKkXY
 - Existing student-built service is for benchmarking only; not a backend dependency.
+
+
+## Compact dashboard (November 9, 2026)
+
+The previous landing-page hero and stacked informational sections were replaced with **one dashboard** at `/`. The deployed assets are `compact-v1.css`, `compact-v1.js`, and `compact-core.mjs`; each is referenced with its exact, versioned filename to avoid stale Cloudflare cached CSS/JS.
+
+- Desktop: header, GPS state, five stop tabs, large map, selected-stop card, walking options in one compact screen.
+- Phone: horizontally scrollable stop tabs, selected-stop card **before** the map, walking options below.
+- Tab selection updates stop details, pickup-area links, selected map marker/focus, and destination walking links; keyboard arrow navigation is supported.
+- 135th Street request stop and Marshak remain selectable but their exact coordinates are **not fabricated** on the map.
+- Source-timestamped, confirmed, fresh shuttle GPS locations may appear when an authorized GPS collector becomes available. This is **not** an ETA engine: arrival displays remain unavailable until proper calibration.
+- Offline app shell caches static UI only. `/api/` GPS responses are always network-only.
+
+Testing: `node --test apps/web/tests/*.test.mjs` runs both state/ETA safety checks and compact UI contract checks.
