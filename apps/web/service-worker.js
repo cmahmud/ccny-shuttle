@@ -1,5 +1,5 @@
-const CACHE_NAME = "ccny-smart-shuttle-v1";
-const OFFLINE_ASSETS = ["/", "/styles.css", "/app.js", "/favicon.svg", "/icon.svg", "/manifest.webmanifest"];
+const CACHE_NAME = "ccny-smart-shuttle-v2";
+const OFFLINE_ASSETS = ["/", "/alpha-v2.css", "/app.js", "/favicon.svg", "/icon.svg", "/manifest.webmanifest"];
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(OFFLINE_ASSETS)).then(() => self.skipWaiting()));
 });
