@@ -1,47 +1,37 @@
-# Authorized GPS collector — prototype
+# CCNY Shuttle GPS collectors
 
-**Status:** Tested with synthetic fixtures only. No live CCNY location feed has been verified or enabled.
+**Current deployment:** The public student tracker relay is running in beta and reading shuttle location reports via one ordinary browser session. Official Samsara API integration remains disabled until CCNY can provision a credential.
 
-This standard-library Python prototype uses the documented Samsara **Vehicle Stats GPS Feed**, with an explicit shuttle-only vehicle ID allowlist. It refuses to call Samsara without **both** a read-only API token and vehicle IDs. It never scrapes the student tracker or public viewer.
+## Sources
 
-Docs: https://developers.samsara.com/docs/vehicle-stats-feed
+### Public student tracker relay (working beta)
 
-## Test locally (no credentials; no network)
+- Implemented in `ccny_gps/student_public.py` and `ccny_gps/student_public_browser.py`
+- Reads only the normal webpage's existing `/tracker-data/feed` responses. No private API requests, credentials, token extraction, proxy rotation, CAPTCHA bypass or restrictive-endpoint retries
+- Collects source-timestamped GPS reports with `source=student_public`, not `samsara`
+- Normal public browser polls roughly every 7 seconds during school-day service hours
+- Rejects malformed, geographically implausible, time-skewed and expired observations
+- If the third-party website becomes unavailable, observations expire; no extrapolated positions are presented as live
+- Separate `ccny-shuttle-public-relay.service`, running under the unprivileged `ccnyshuttle` account
 
-```sh
-python3 -m unittest discover -s services/gps-collector/tests -v
-```
+The source is not independently verified against the official Samsara hardware. Do **not** use its inferred arrival times as ground truth.
 
-## Authorized test (only after access has been approved and provisioned)
+### Official Samsara GPS feed (not connected)
 
-```sh
-export SAMSARA_API_TOKEN='your restricted read-only token'
-export CCNY_SHUTTLE_VEHICLE_IDS='shuttle-vehicle-id-1,shuttle-vehicle-id-2'
-PYTHONPATH=services/gps-collector python3 -m ccny_gps --once
-```
+`ccny_gps/samsara.py` implements the documented Samsara Vehicle Stats GPS feed and requires a shuttle-scoped read-only API token and the exact vehicle IDs. Neither is currently available. `python3 -m ccny_gps --probe` supports a single read-only API check after approved credentials are installed. No token is stored in the public website.
 
-For continued collection, use `--loop`. Minimum interval is five seconds when the feed has no additional pages; failed polls retry with backoff. Keep the token in an approved secret store; **never commit it**.
+## API and data
 
-This prototype stores observations and cursors transactionally in a local SQLite file. It preserves source GPS timestamps separately from reception timestamps, deduplicates observations, and treats old source timestamps as stale. **It does not yet implement PostgreSQL, public APIs, production monitoring, route matching, or real ETA calculations.**
+GPS observations are stored in the existing local SQLite database with source provenance. The loopback-only read service on `127.0.0.1:8766` exposes `/v1/vehicles`; Nginx proxies `https://shuttle.syndrid.com/api/v1/vehicles`.
 
-The API's initial response may include the last known position of an inactive vehicle, so the presence of a position does not establish a live bus.
+The status service prefers *fresh direct Samsara* data if available, otherwise fresh third-party observations; both preserve the original GPS timestamp independently of the HTTP receipt time. It distinguishes transport health from GPS freshness. The website marks third-party positions as reported and last-seen positions as delayed. There are no calibrated ETA predictions.
 
-No production service has been deployed.
-
-## Local GPS status API (no Samsara token required)
+## Testing
 
 ```sh
-# Inspect only the observations actually saved in local development SQLite.
-PYTHONPATH=services/gps-collector python3 -m ccny_gps --status
-
-# Local-only read API; not a public deployment.
-PYTHONPATH=services/gps-collector python3 -m ccny_gps --serve --port 8766
-curl http://127.0.0.1:8766/health
-curl http://127.0.0.1:8766/v1/vehicles
+python3 -m unittest discover -s services/gps-collector/tests -q
+PYTHONPATH=services/eta-engine python3 -m unittest discover -s services/eta-engine/tests -q
+node --test apps/web/tests/*.test.mjs
 ```
 
-The API binds to `127.0.0.1` only. Freshness uses the original GPS event timestamp, **not** the last successful HTTP poll time. The `lastSuccessfulPoll` value tracks transport health separately. Endpoints do not extrapolate any coordinates and will display `no_data` / `stale` rather than fake live updates. Before exposing an external API, add authentication, rate limiting, access controls, production storage and explicit operational permission.
-
-Samsara feed cursors expire after 30 days. After such an outage, historical backfill (using authorized stats/history access) should be used rather than silently losing the gap by resetting cursors.
-
-The status API additionally reports `transportState` (`never_connected`, `healthy`, `delayed`, or `offline`) separately from `sourceState` (`no_data`, `live`, `delayed`, `stale`). Transport thresholds are provisional and are **not** evidence of actual GPS freshness.
+See `docs/PUBLIC_GPS_RELAY.md` for service operation, source usage and failure modes; `docs/LIVE_GPS_INTEGRATION.md` for upgrading to official direct Samsara access.
