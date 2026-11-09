@@ -55,3 +55,11 @@ The correct GPS API must report the *source observation time*, not just the late
 - The backend is **read-only and loopback-only**. Collection is not configured, and no data is scraped from student websites.
 - Stop pins are *approximate geographic references* and not confirmed boarding coordinates.
 - Live ETA and station optimization remain disabled until data access and prediction accuracy are established.
+
+## Compact one-page web release
+
+The public homepage now loads `/compact-v1.css` and `/compact-v1.js`, which imports `/compact-core.mjs`. The service worker cache is `ccny-smart-shuttle-compact-v1`. This supersedes the prior `alpha-v3.css`/legacy `app.js` frontend, which can remain on disk temporarily for rollback but is no longer referenced by the homepage.
+
+The release has **no change** to Nginx, public TLS, the GPS API path `/api/v1/vehicles`, the local shuttle backend port `8766`, or OmniRoute's separate port `23128`. Revert just `/var/www/shuttle.syndrid.com/index.html` and the prior service worker if rollback is necessary.
+
+The absence of live Samsara GPS data is intentional and displayed as unavailable, not converted into fabricated arrival times.
