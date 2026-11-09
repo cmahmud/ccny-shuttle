@@ -55,6 +55,7 @@ class WebSmokeTests(unittest.TestCase):
         page = (WEB / "index.html").read_text()
         for choice in ["nac", "marshak", "shepard", "steinman", "spitzer"]:
             self.assertIn('value="' + choice + '"', page)
+        self.assertEqual(page.count('data-walk-link='), 3)
 
 if __name__ == "__main__":
     unittest.main()
