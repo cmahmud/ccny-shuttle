@@ -1,5 +1,6 @@
 """Transactional SQLite prototype storage; migrate to PostgreSQL for production."""
 from pathlib import Path
+from hashlib import sha256
 from datetime import datetime, timezone
 import sqlite3
 
@@ -37,7 +38,35 @@ class ObservationStore:
                     source TEXT PRIMARY KEY,
                     last_successful_poll_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS feed_scopes (
+                    source TEXT PRIMARY KEY,
+                    vehicle_ids_hash TEXT NOT NULL
+                );
             """)
+
+    def bind_vehicle_scope(self, source: str, vehicle_ids: frozenset[str]) -> None:
+        """Pin checkpoint to exact vehicle allowlist; never skip vehicles silently.
+
+        Changing scope requires a deliberate new database/backfill. A historical
+        DB with a cursor but no prior scope binding is also rejected.
+        """
+        if not source or not vehicle_ids or any(not x.strip() for x in vehicle_ids):
+            raise ValueError("Nonempty source and vehicle ID allowlist are mandatory")
+        digest = sha256("\n".join(sorted(vehicle_ids)).encode("utf-8")).hexdigest()
+        with self.conn:
+            previous = self.conn.execute(
+                "SELECT vehicle_ids_hash FROM feed_scopes WHERE source = ?", (source,)
+            ).fetchone()
+            if previous:
+                if previous[0] != digest:
+                    raise ValueError("Shuttle vehicle scope changed; create a new feed checkpoint")
+                return
+            if self.get_cursor(source) is not None:
+                raise ValueError("Legacy checkpoint has no vehicle scope; explicit migration required")
+            self.conn.execute(
+                "INSERT INTO feed_scopes(source,vehicle_ids_hash) VALUES(?,?)",
+                (source, digest),
+            )
 
     def get_cursor(self, source: str) -> str | None:
         row = self.conn.execute(
