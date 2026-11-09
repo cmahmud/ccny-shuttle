@@ -2,6 +2,9 @@
 Description=CCNY Shuttle authorized Samsara GPS collector (not enabled until provisioned)
 Wants=network-online.target
 After=network-online.target
+ConditionPathExists=/etc/ccny-shuttle/collector.env
+StartLimitIntervalSec=10min
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -11,7 +14,8 @@ WorkingDirectory=/var/lib/ccny-shuttle
 Environment=PYTHONPATH=/opt/ccny-shuttle/services/gps-collector
 EnvironmentFile=/etc/ccny-shuttle/collector.env
 ExecStart=/usr/bin/python3 -m ccny_gps --loop --db /var/lib/ccny-shuttle/gps.sqlite3
-Restart=always
+Restart=on-failure
+RestartPreventExitStatus=77 78
 RestartSec=10
 UMask=0077
 NoNewPrivileges=true
