@@ -11,6 +11,7 @@ import argparse
 import asyncio
 from datetime import datetime, timezone
 import logging
+from math import cos, hypot, radians
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -20,6 +21,14 @@ from .student_public import (
 )
 
 LOG = logging.getLogger("ccny-public-gps")
+
+
+def surface_distance_m(a, b) -> float:
+    """Short local distance in meters between two bus coordinates."""
+    dlat = radians(a.latitude - b.latitude)
+    dlon = radians(a.longitude - b.longitude)
+    mean_lat = radians((a.latitude + b.latitude) / 2)
+    return 6_371_000 * hypot(dlat, dlon * cos(mean_lat))
 
 
 class PublicBrowserRelay:
@@ -33,17 +42,33 @@ class PublicBrowserRelay:
         self.failed_responses = 0
         self._tasks: set[asyncio.Task] = set()
         self._denied = False
+        self._last_positions = {
+            obs.vehicle_id: obs for obs in store.latest_observations(SOURCE)
+        }
 
     def accept_payload(self, payload: dict, now: datetime) -> int:
         snapshot = parse_public_feed(payload, now)
         milliseconds = int(snapshot.feed_generated_at.timestamp() * 1000)
         if milliseconds <= self.last_generated_ms:
             return 0
-        # Do not checkpoint an empty source response as if it were a GPS fix.
-        # Commit a successful feed snapshot so transport and GPS health are distinct.
+        # Reject out-of-order fixes and impossible position jumps. GPS jitter can
+        # alter coordinates without a new original timestamp; ignore those too.
+        valid = []
+        movement_rejected = 0
+        for obs in snapshot.observations:
+            previous = self._last_positions.get(obs.vehicle_id)
+            if previous:
+                dt = (obs.observed_at - previous.observed_at).total_seconds()
+                if dt <= 0 or surface_distance_m(obs, previous) > max(55, dt * 35):
+                    movement_rejected += 1
+                    continue
+            valid.append(obs)
+        # Each snapshot updates transport separately from the underlying GPS event time.
         inserted = self.store.commit_page(
-            SOURCE, snapshot.observations, f"public-feed:{milliseconds}", polled_at=now
+            SOURCE, tuple(valid), f"public-feed:{milliseconds}", polled_at=now
         )
+        for obs in valid:
+            self._last_positions[obs.vehicle_id] = obs
         self.last_generated_ms = milliseconds
         self.last_good_response = now
         self.valid_responses += 1
@@ -52,7 +77,7 @@ class PublicBrowserRelay:
             LOG.info(
                 "Student public GPS feed healthy; vehicles=%d new_observations=%d "
                 "rejected=%d total=%d",
-                len(snapshot.observations), inserted, snapshot.vehicles_rejected,
+                len(valid), inserted, snapshot.vehicles_rejected + movement_rejected,
                 self.inserted_total,
             )
         return inserted
