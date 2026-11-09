@@ -1,0 +1,26 @@
+name: Public Samsara viewer diagnostic
+on:
+  pull_request:
+    paths:
+      - "research/samsara/viewer-diagnostic.mjs"
+      - ".github/workflows/viewer-diagnostic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  viewer-metadata:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install compatible Playwright Chromium
+        run: |
+          npm install --no-save playwright@1.57.0
+          npx playwright install --with-deps chromium
+      - name: Inspect only public viewer request metadata
+        run: node research/samsara/viewer-diagnostic.mjs
