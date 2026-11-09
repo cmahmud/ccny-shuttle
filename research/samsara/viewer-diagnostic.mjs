@@ -7,6 +7,8 @@ let errors=0;
 const counts=new Map();
 const patterns=new Map();
 const protocols={xhr:0,fetch:0,websocket:0,eventsource:0,other:0};
+const graphqlResponses=[];
+const websocketFrames={received:0,sent:0};
 function safePath(raw) {
   try {
     const u=new URL(raw);
@@ -35,7 +37,26 @@ try {
     }catch{}
   });
   page.on("requestfailed",(request)=>{errors++;});
-  page.on("websocket",()=>{protocols.websocket++});
+  page.on("websocket",(socket)=>{
+    protocols.websocket++;
+    socket.on("framereceived",()=>{websocketFrames.received++;});
+    socket.on("framesent",()=>{websocketFrames.sent++;});
+  });
+  page.on("response", async(response)=>{
+    try{
+      const u=new URL(response.url());
+      if(u.hostname !== "us4-ws.cloud.samsara.com" || u.pathname !== "/r/graphql") return;
+      const record={status:response.status(),contentType:(response.headers()["content-type"]||"").split(";")[0]};
+      if(record.contentType.includes("json")){
+        const json=await response.json();
+        record.topLevelKeys=Object.keys(json||{}).slice(0,12);
+        record.dataFields=json?.data&&typeof json.data==="object"?Object.keys(json.data).slice(0,12):[];
+        record.errorCount=Array.isArray(json?.errors)?json.errors.length:0;
+        record.dataPresent=Boolean(json?.data);
+      }
+      graphqlResponses.push(record);
+    }catch {graphqlResponses.push({status:"unreadable"});}
+  });
   let navigation;
   try{
     navigation=await page.goto(url,{waitUntil:"domcontentloaded",timeout:30000});
@@ -47,6 +68,8 @@ try {
   console.log("Dynamic transport counts:",JSON.stringify(protocols));
   console.log("Dynamic request path patterns (sanitized; no query params):",JSON.stringify([...patterns].slice(0,30)));
   console.log("Request failures:",errors);
+  console.log("GraphQL response structure (metadata only):",JSON.stringify(graphqlResponses));
+  console.log("WebSocket frame counts (no payloads):",JSON.stringify(websocketFrames));
   // No screenshots, saved HTML, tokens, or response payloads.
   await context.close();
 }finally{await browser.close();}
