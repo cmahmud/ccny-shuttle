@@ -16,7 +16,7 @@ No real GPS feed is running. The read-only status API should return `sourceState
 ## Request paths
 
 - `/`: web interface, no separate frontend backend port
-- `/alpha-v2.css`: current versioned stylesheet
+- `/alpha-v3.css`: current versioned stylesheet
 - `/app.js`: browser app
 - `/api/v1/vehicles`: Nginx proxy to `http://127.0.0.1:8766/v1/vehicles`
 - `/api/health`: Nginx proxy to `http://127.0.0.1:8766/health`
