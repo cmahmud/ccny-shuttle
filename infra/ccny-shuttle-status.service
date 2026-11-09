@@ -1,0 +1,28 @@
+[Unit]
+Description=CCNY Smart Shuttle read-only GPS status API (no live collector enabled)
+After=network.target
+
+[Service]
+Type=simple
+User=ccnyshuttle
+Group=ccnyshuttle
+Environment=PYTHONPATH=/opt/ccny-shuttle/services/gps-collector
+WorkingDirectory=/var/lib/ccny-shuttle
+ExecStart=/usr/bin/python3 -m ccny_gps --serve --db /var/lib/ccny-shuttle/gps.sqlite3 --port 8766
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ReadWritePaths=/var/lib/ccny-shuttle
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+MemoryMax=192M
+TasksMax=16
+
+[Install]
+WantedBy=multi-user.target
