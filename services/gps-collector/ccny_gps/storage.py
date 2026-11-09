@@ -119,7 +119,7 @@ class ObservationStore:
         ).fetchone()
         return datetime.fromisoformat(row[0]) if row else None
 
-    def latest_observations(self) -> list[Observation]:
+    def latest_observations(self, source: str = "samsara") -> list[Observation]:
         rows = self.conn.execute("""
             WITH latest AS (
                 SELECT source, vehicle_id, latitude, longitude, observed_at, received_at,
@@ -128,12 +128,12 @@ class ObservationStore:
                            PARTITION BY source, vehicle_id
                            ORDER BY observed_at DESC, id DESC
                        ) AS rn
-                FROM observations WHERE source = 'samsara'
+                FROM observations WHERE source = ?
             )
             SELECT source, vehicle_id, latitude, longitude, observed_at, received_at,
                    heading_degrees, speed_mph
             FROM latest WHERE rn = 1 ORDER BY vehicle_id
-        """).fetchall()
+        """, (source,)).fetchall()
         return [
             Observation(
                 source=row[0], vehicle_id=row[1], latitude=row[2], longitude=row[3],
