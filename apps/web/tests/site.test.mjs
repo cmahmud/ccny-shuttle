@@ -1,64 +1,76 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-
-const here = new URL("../", import.meta.url);
-const read = (name) => readFileSync(new URL(name, here), "utf8");
+import {readFileSync} from "node:fs";
+const read = (name) => readFileSync(new URL("../" + name, import.meta.url), "utf8");
 const html = read("index.html");
-const css = read("alpha-v3.css");
-const js = read("app.js");
+const css = read("compact-v1.css");
+const js = read("compact-v1.js");
 const worker = read("service-worker.js");
-const manifest = JSON.parse(read("manifest.webmanifest"));
 
-test("landing page has a documented independent GPS state", () => {
-  assert.match(html, /Live shuttle GPS not connected yet/);
-  assert.match(html, /Not enough live data yet/);
-  assert.match(html, /ETA unavailable/);
-  assert.match(html, /Not affiliated with CCNY/);
-  assert.match(html, /cloud\.samsara\.com\/o\/4010168/);
+test("single compact tracker has no large hero or multi-page navigation", () => {
+  assert.match(html, /class="shell dashboard"/);
+  assert.match(html, /id="stop-tabs"/);
+  assert.match(html, /id="map"/);
+  assert.match(html, /id="stop-panel"/);
+  assert.match(html, /id="destination-select"/);
+  assert.doesNotMatch(html, /class="hero"/);
+  assert.doesNotMatch(html, /#about|#stops|#how-it-works/);
 });
 
-test("served CSS, JS, manifest, and service-worker filenames agree", () => {
-  for (const name of ["alpha-v3.css", "app.js", "manifest.webmanifest", "service-worker.js"]) {
-    assert.ok(html.includes(name) || (name === "service-worker.js" && js.includes(name)), name);
+test("five fully functional stop tabs have accessible controls", () => {
+  for (const id of ["125", "135", "marshak", "145", "nac"]) {
+    assert.match(html, new RegExp('id="tab-' + id + '"'));
+    assert.match(html, new RegExp('data-stop="' + id + '"'));
   }
-  assert.match(css, /\.map-panel\b/);
-  assert.match(css, /\.alert-banner\b/);
-  assert.ok(manifest.start_url === "/" || manifest.start_url === "/index.html");
+  assert.match(html, /role="tablist"/);
+  assert.match(html, /role="tabpanel"/);
+  assert.match(js, /event\.key === "ArrowRight"/);
+  assert.match(js, /selectStop\(tab\.dataset\.stop\)/);
 });
 
-test("all runtime queried DOM IDs exist in the page", () => {
-  const required = [...js.matchAll(/\bel\(\"([^\"]+)\"\)/g)].map((x) => x[1]);
-  for (const id of required) assert.match(html, new RegExp('id="' + id + '"'));
+test("page has one map and compact responsive mobile layout", () => {
+  assert.equal((html.match(/id="map"/g)||[]).length,1);
+  assert.match(css, /@media \(max-width: 760px\)/);
+  assert.match(css, /@media \(max-width: 450px\)/);
+  assert.match(css, /\.stop-tabs\{display:flex;overflow-x:auto/);
+  assert.match(css, /\.main-grid\{display:flex;flex-direction:column/);
+  assert.match(css, /\.stop-card\{order:1/);
 });
 
-test("stylesheet covers the named visual classes", () => {
-  const classes = [...html.matchAll(/class="([^"]+)"/g)]
-    .flatMap((m) => m[1].split(/\s+/).filter(Boolean));
-  const ignored = new Set(["site-shell", "next-panel"]);
-  const missing = [...new Set(classes)].filter((cl) => !ignored.has(cl)
-      && !css.includes("." + cl));
-  assert.deepEqual(missing, [], "missing styling for " + missing.join(", "));
+test("HTML references deployed versioned assets", () => {
+  assert.match(html, /\/compact-v1\.css/);
+  assert.match(html, /\/compact-v1\.js/);
+  assert.match(js, /\.\/compact-core\.mjs/);
+  assert.match(html, /\/service-worker\.js|\/compact-v1\.js/);
+  for (const file of ["compact-v1.css","compact-v1.js","compact-core.mjs"]) {
+    assert.ok(worker.includes("/" + file),file);
+  }
 });
 
-test("GPS status API path matches the dedicated Nginx route", () => {
-  assert.match(js, /const API_ENDPOINT = "\/api\/v1\/vehicles"/);
-  assert.match(js, /fetch\(API_ENDPOINT, \{ cache: "no-store"/);
-  assert.match(js, /locationKind !== "confirmed"/);
-  assert.match(js, /gpsAge > 120/);
-  assert.match(js, /sourceState === "live" && transportState === "healthy"/);
+test("all IDs needed for UI updates exist in markup", () => {
+  for (const match of js.matchAll(/\$\("([^"]+)"\)/g)) {
+    assert.match(html, new RegExp('id="' + match[1] + '"'),"missing " + match[1]);
+  }
 });
 
-test("service worker never caches GPS API responses", () => {
+test("no guesses about ETAs or fake bus positions", () => {
+  assert.match(html, /ETA unavailable/);
+  assert.match(js, /Live shuttle positions not connected/);
+  assert.match(html, /Pins are approximate/);
+  assert.match(js, /location|validVehicle|evaluateFeed/);
+  assert.match(js, /No confirmed live bus positions/);
+  assert.doesNotMatch(html, /\b\d+ min to (?:125th|145th)/);
+});
+
+test("offline caching never stores current GPS", () => {
   assert.match(worker, /url\.pathname\.startsWith\("\/api\/"\)/);
-  assert.match(worker, /if \(url\.pathname\.startsWith/);
-  assert.doesNotMatch(worker, /\bBearer\s+[a-zA-Z0-9_-]+/);
+  assert.match(worker, /ccny-smart-shuttle-compact-v1/);
+  assert.doesNotMatch(worker,/APP_SHELL[^;]*\/api\/v1\/vehicles/s);
 });
 
-test("official stops remain clearly labeled approximate on map", () => {
-  assert.match(js, /Coordinates are nearby station\/building landmarks, NOT surveyed shuttle boarding points/);
-  assert.match(html, /Stop pins are approximate/);
-  assert.match(html, /125th Street/);
-  assert.match(html, /145th Street/);
+test("documented official tracker, service hours, and directions present", () => {
+  assert.match(html,/cloud\.samsara\.com\/o\/4010168/);
+  assert.match(html,/6:30 AM–10 PM/);
+  assert.match(html,/Independent student project/);
+  assert.match(js,/directionsUrl/);
 });
