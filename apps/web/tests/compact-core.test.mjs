@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { STOPS, DESTINATIONS, R137, directionsUrl, observedAgeSeconds, validVehicle, evaluateFeed, shortBusId, ago } from "../compact-core-v2.js";
+import { STOPS, DESTINATIONS, R137, directionsUrl, observedAgeSeconds, validVehicle, evaluateFeed, shortBusId, ago } from "../compact-core-v4.js";
 const NOW = Date.parse("2026-11-09T18:40:00Z");
 const bus = {
   vehicleId: "89",
@@ -10,7 +10,7 @@ const bus = {
   longitude: -73.95,
   observedAt: "2026-11-09T18:39:50Z"
 };
-const live = { generatedAt: "2026-11-09T18:39:59Z", sourceState: "live", transportState: "healthy", vehicles: [bus] };
+const live = { source: "samsara", generatedAt: "2026-11-09T18:39:59Z", sourceState: "live", transportState: "healthy", vehicles: [bus] };
 
 test("all tabs have a known, properly described stop", () => {
   assert.deepEqual(Object.keys(STOPS), ["125", "135", "145", "marshak", "nac"]);
@@ -62,16 +62,18 @@ test("stale API response cannot masquerade as current GPS", () => {
 });
 
 test("GPS older than 30 seconds is not shown as live", () => {
-  const result = evaluateFeed({ ...live, vehicles: [{ ...bus, observedAt: "2026-11-09T18:38:00Z" }] }, NOW);
-  assert.equal(result.state, "offline");
-  assert.deepEqual(result.vehicles, []);
+  const result = evaluateFeed({ ...live, vehicles: [{ ...bus, freshness:"delayed", observedAt: "2026-11-09T18:38:00Z" }] }, NOW);
+  assert.equal(result.state, "delayed");
+  assert.equal(result.vehicles.length, 1);
+  assert.match(result.message, /not live/);
 });
 
 test("delayed or stale source remains visibly delayed without bus pins", () => {
   for (const state of ["delayed", "stale"]) {
     const result = evaluateFeed({ ...live, sourceState: state }, NOW);
     assert.equal(result.state, "delayed");
-    assert.deepEqual(result.vehicles, []);
+    assert.equal(result.vehicles.length, 1);
+    assert.match(result.message, /not live/);
   }
 });
 
@@ -95,4 +97,30 @@ test("bus ID and duration formatting are conservative", () => {
   assert.equal(ago(40), "40s ago");
   assert.equal(ago(180), "3m ago");
   assert.equal(ago(-5), "unknown");
+});
+
+test("fresh third-party reports are labeled and never mistaken for official GPS", () => {
+  const report = {...bus, locationKind:"third_party_observed"};
+  const feed = {...live, source:"student_public", vehicles:[report]};
+  const state=evaluateFeed(feed,NOW);
+  assert.equal(state.state,"live");
+  assert.equal(state.publicRelay,true);
+  assert.equal(state.vehicles.length,1);
+  assert.match(state.message,/student tracker/);
+  assert.deepEqual(evaluateFeed({...feed,source:"samsara"},NOW).vehicles,[]);
+  const old=evaluateFeed({...feed,vehicles:[{...report,observedAt:"2026-11-09T18:38:00Z",freshness:"delayed"}]},NOW);
+  assert.equal(old.state,"delayed");
+  assert.equal(old.vehicles.length,1);
+});
+
+test("last-known third-party vehicle remains labeled delayed then expires", () => {
+  const report = {...bus, locationKind:"third_party_observed",
+    observedAt:"2026-11-09T18:37:40Z",freshness:"stale"};
+  const feed = {...live, source:"student_public", sourceState:"stale",vehicles:[report]};
+  const delayed=evaluateFeed(feed,NOW);
+  assert.equal(delayed.state,"delayed");
+  assert.equal(delayed.vehicles.length,1);
+  assert.match(delayed.message,/not live/);
+  const expired=evaluateFeed({...feed,vehicles:[{...report,observedAt:"2026-11-09T18:30:00Z"}]},NOW);
+  assert.equal(expired.vehicles.length,0);
 });
