@@ -95,3 +95,15 @@ Do not deploy demo data as live shuttle telemetry.
 ## Next step
 
 Run the Phase-0 investigation from a local development machine with browser tooling. Record sanitized conclusions in `research/samsara/`, then implement the appropriate collector adapter. See `AGENTS.md` for agent instructions when available.
+
+## Public beta (November 9, 2026)
+
+The independent mobile-first beta is reachable at **https://shuttle.syndrid.com**. A dedicated Nginx vhost serves the static web interface and proxies the read-only status endpoint to `127.0.0.1:8766`. The existing OmniRoute installation at `api.syndrid.com` uses **`127.0.0.1:23128`** and remains separate.
+
+- `apps/web`: destination selector, stop-area map, official shuttle links, honest no-GPS states and installable app shell.
+- `services/gps-collector`: credential-gated prototype with durable incremental storage, source-GPS freshness, transport-health separation and a local-only status API.
+- `docs/DEPLOYMENT.md`: verified infrastructure, health checks, CSS cache-versioning and rollback.
+
+**Important:** The site is live, but **the independent live GPS feed and shuttle ETA recommendations are not operational yet**. The app intentionally shows an unavailable status rather than synthetic buses or made-up ETAs. Next: confirm an authorized Samsara data connection, collect source-timestamped shuttle observations and validate arrivals before turning on the prediction engine.
+
+Web tests: `node --test apps/web/tests/*.test.mjs`. Backend tests: `python3 -m unittest discover -s services/gps-collector/tests -v`.
