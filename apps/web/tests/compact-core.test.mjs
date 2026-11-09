@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { STOPS, DESTINATIONS, R137, directionsUrl, observedAgeSeconds, validVehicle, evaluateFeed, shortBusId, ago } from "../compact-core.mjs";
+import { STOPS, DESTINATIONS, R137, directionsUrl, observedAgeSeconds, validVehicle, evaluateFeed, shortBusId, ago } from "../compact-core-v2.js";
 const NOW = Date.parse("2026-11-09T18:40:00Z");
 const bus = {
   vehicleId: "89",
