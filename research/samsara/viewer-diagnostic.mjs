@@ -9,6 +9,16 @@ const patterns=new Map();
 const protocols={xhr:0,fetch:0,websocket:0,eventsource:0,other:0};
 const graphqlResponses=[];
 const websocketFrames={received:0,sent:0};
+const websocketShapes=[];
+const requestOps=[];
+function shape(x,depth=0){
+  if(depth>4) return "...";
+  if(Array.isArray(x)) return {kind:"array",count:x.length,first:x.length?shape(x[0],depth+1):null};
+  if(x && typeof x==="object") return Object.fromEntries(Object.entries(x).slice(0,20)
+    .filter(([k])=>!["token","accessToken","fleetViewerToken","secret","authorization","cookie","query","variables"].includes(k))
+    .map(([k,v])=>[k,shape(v,depth+1)]));
+  return x===null?"null":typeof x;
+}
 function safePath(raw) {
   try {
     const u=new URL(raw);
@@ -24,6 +34,13 @@ try {
   const page=await context.newPage();
   page.on("request",(request)=>{
     const kind=request.resourceType();
+    try{
+      if(request.url().includes("/r/graphql") && request.method()==="POST"){
+        const post=request.postDataJSON();
+        requestOps.push({operation:post?.operationName||null,queryTopKeys:typeof post?.query==="string"?
+          [...new Set((post.query.match(/\\b(?:query|mutation|subscription|location|fleet|asset|vehicles|gps)\\b/gi)||[]))].slice(0,12):[]});
+      }
+    }catch{}
     if(["xhr","fetch","websocket","eventsource"].includes(kind)) {
       protocols[kind]++;
       const key=safePath(request.url())+" ["+kind+"]";
@@ -39,7 +56,13 @@ try {
   page.on("requestfailed",(request)=>{errors++;});
   page.on("websocket",(socket)=>{
     protocols.websocket++;
-    socket.on("framereceived",()=>{websocketFrames.received++;});
+    socket.on("framereceived",({payload})=>{
+      websocketFrames.received++;
+      if(websocketShapes.length < 12){
+        try{websocketShapes.push(shape(JSON.parse(String(payload))));}
+        catch{websocketShapes.push("non_json_binary_or_text");}
+      }
+    });
     socket.on("framesent",()=>{websocketFrames.sent++;});
   });
   page.on("response", async(response)=>{
@@ -51,6 +74,7 @@ try {
         const json=await response.json();
         record.topLevelKeys=Object.keys(json||{}).slice(0,12);
         record.dataFields=json?.data&&typeof json.data==="object"?Object.keys(json.data).slice(0,12):[];
+        record.dataShape=json?.data?shape(json.data):null;
         record.errorCount=Array.isArray(json?.errors)?json.errors.length:0;
         record.dataPresent=Boolean(json?.data);
       }
@@ -68,6 +92,8 @@ try {
   console.log("Dynamic transport counts:",JSON.stringify(protocols));
   console.log("Dynamic request path patterns (sanitized; no query params):",JSON.stringify([...patterns].slice(0,30)));
   console.log("Request failures:",errors);
+  console.log("GraphQL operation names (no queries/variables):",JSON.stringify(requestOps.slice(0,20)));
+  console.log("WebSocket incoming message shapes:",JSON.stringify(websocketShapes));
   console.log("GraphQL response structure (metadata only):",JSON.stringify(graphqlResponses));
   console.log("WebSocket frame counts (no payloads):",JSON.stringify(websocketFrames));
   // No screenshots, saved HTML, tokens, or response payloads.
