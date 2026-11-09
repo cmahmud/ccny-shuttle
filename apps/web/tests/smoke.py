@@ -31,7 +31,7 @@ class WebSmokeTests(unittest.TestCase):
         self.assertIn("/app.js", parser.links)
 
     def test_local_assets_exist(self):
-        for asset in ["index.html", "app.js", "styles.css", "favicon.svg", "icon.svg", "service-worker.js", "manifest.webmanifest"]:
+        for asset in ["index.html", "app.js", "alpha-v2.css", "favicon.svg", "icon.svg", "service-worker.js", "manifest.webmanifest"]:
             with self.subTest(asset=asset):
                 self.assertTrue((WEB / asset).is_file())
 
