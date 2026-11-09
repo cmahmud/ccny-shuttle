@@ -109,10 +109,13 @@ class IncrementalEventIngestor:
 
     def __init__(
         self, gps_db: str, history_db: str,
-        config: ReplayConfig, batch_size: int = 500
+        config: ReplayConfig, batch_size: int = 500,
+        source: str = "samsara",
     ):
         gps = Path(gps_db).expanduser().resolve()
         history = Path(history_db).expanduser().resolve()
+        if source not in ("samsara", "student_public"):
+            raise ValueError("Unsupported GPS observation source")
         if gps == history:
             raise ValueError("GPS and historical events MUST use separate databases")
         if not gps.is_file():
@@ -123,6 +126,7 @@ class IncrementalEventIngestor:
             raise ValueError("Require verified stops and explicit shuttle vehicles")
 
         self.config = config
+        self.source = source
         self.batch_size = batch_size
         self.fingerprint = config_fingerprint(config)
         self._source = sqlite3.connect(f"file:{quote(str(gps))}?mode=ro", uri=True)
@@ -139,12 +143,20 @@ class IncrementalEventIngestor:
                     recorded_at TEXT NOT NULL
                 )
             """)
+        # The history tables store no source column on stop-events. Never
+        # combine inferred events from distinct GPS provenances into one DB.
+        existing_sources = self._store.connection.execute(
+            "SELECT source FROM ingest_checkpoint"
+        ).fetchall()
+        if any(row[0] != source for row in existing_sources):
+            self.close()
+            raise ValueError("History database already belongs to a different GPS source")
         self._detector = StopDetector(list(config.stops))
         self._pending: dict[str, StopEvent] = {}
         self._last_id = 0
         record = self._store.connection.execute(
             "SELECT config_fingerprint,last_observation_id,detector_json,departures_json "
-            "FROM ingest_checkpoint WHERE source='samsara'"
+            "FROM ingest_checkpoint WHERE source=?", (self.source,)
         ).fetchone()
         if record:
             fingerprint, last_id, detector_json, departure_json = record
@@ -160,7 +172,10 @@ class IncrementalEventIngestor:
             if any(key not in config.vehicles for key in self._pending):
                 self.close()
                 raise ValueError("Saved pending departure has a disallowed vehicle")
-        max_id = self._source.execute("SELECT COALESCE(MAX(id),0) FROM observations").fetchone()[0]
+        max_id = self._source.execute(
+            "SELECT COALESCE(MAX(id),0) FROM observations WHERE source=?",
+            (self.source,),
+        ).fetchone()[0]
         if max_id < self._last_id:
             self.close()
             raise ValueError("Source GPS database was reset or replaced; refusing to skip history")
@@ -178,8 +193,8 @@ class IncrementalEventIngestor:
     def process_batch(self) -> BatchResult:
         rows = self._source.execute(
             "SELECT id,source,vehicle_id,observed_at,latitude,longitude,speed_mph "
-            "FROM observations WHERE id > ? ORDER BY id LIMIT ?",
-            (self._last_id, self.batch_size + 1)
+            "FROM observations WHERE id > ? AND source=? ORDER BY id LIMIT ?",
+            (self._last_id, self.source, self.batch_size + 1)
         ).fetchall()
         more = len(rows) > self.batch_size
         rows = rows[:self.batch_size]
@@ -194,7 +209,7 @@ class IncrementalEventIngestor:
         events: list[StopEvent] = []
         legs: list[TravelSample] = []
         for index, source, vehicle, timestamp, lat, lon, speed in rows:
-            if source != "samsara" or vehicle not in self.config.vehicles:
+            if source != self.source or vehicle not in self.config.vehicles:
                 continue
             fix = GPSFix(
                 vehicle, datetime.fromisoformat(timestamp), lat, lon, speed, source
@@ -225,7 +240,7 @@ class IncrementalEventIngestor:
             # detector states/checkpoints. SQLite serializes the write transaction.
             checkpoint = self._store.connection.execute(
                 "SELECT config_fingerprint,last_observation_id "
-                "FROM ingest_checkpoint WHERE source='samsara'"
+                "FROM ingest_checkpoint WHERE source=?", (self.source,)
             ).fetchone()
             if checkpoint:
                 if checkpoint[0] != self.fingerprint or checkpoint[1] != self._last_id:
@@ -267,7 +282,7 @@ class IncrementalEventIngestor:
                 "detector_json=excluded.detector_json,"
                 "departures_json=excluded.departures_json,"
                 "recorded_at=excluded.recorded_at",
-                ("samsara", self.fingerprint, next_id,
+                (self.source, self.fingerprint, next_id,
                  _serialize_detector(detector),
                  json.dumps({key: _format_event(event) for key, event in pending.items()}),
                  detected_at),
@@ -286,13 +301,15 @@ def main():
     parser.add_argument("--history-db", required=True)
     parser.add_argument("--verified-config", required=True,
                         help="Manually verified shuttle vehicle IDs, stop geofences and routes")
+    parser.add_argument("--source", choices=("samsara", "student_public"),
+                        default="samsara", help="Explicit GPS origin; separate history DB per source")
     parser.add_argument("--once", action="store_true", help="Process all currently queued GPS rows")
     parser.add_argument("--loop", action="store_true", help="Poll local stored GPS rows every 10s")
     args = parser.parse_args()
     if args.once == args.loop:
         parser.error("Choose exactly one of --once or --loop")
     config = load_config(args.verified_config)
-    with IncrementalEventIngestor(args.gps_db, args.history_db, config) as worker:
+    with IncrementalEventIngestor(args.gps_db, args.history_db, config, source=args.source) as worker:
         while True:
             totals = {"processed": 0, "new_events": 0, "new_legs": 0}
             while True:
@@ -303,7 +320,8 @@ def main():
                 if not batch.source_has_more:
                     break
             print(json.dumps({**totals, "last_source_id": batch.last_source_id,
-                              "live_gps": False, "mode": "authorized_history_ingest"}),
+                              "gps_source": args.source, "live_gps": False,
+                              "mode": "history_ingest"}),
                   flush=True)
             if args.once:
                 break
