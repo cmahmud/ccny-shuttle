@@ -1,0 +1,30 @@
+[Unit]
+Description=CCNY Shuttle validated GPS-to-stop history logger (not enabled until verified)
+After=ccny-shuttle-collector.service
+Requires=ccny-shuttle-collector.service
+
+[Service]
+Type=simple
+User=ccnyshuttle
+Group=ccnyshuttle
+WorkingDirectory=/var/lib/ccny-shuttle
+Environment=PYTHONPATH=/opt/ccny-shuttle/services/eta-engine
+ExecStart=/usr/bin/python3 -m ccny_eta.stream --gps-db /var/lib/ccny-shuttle/gps.sqlite3 --history-db /var/lib/ccny-shuttle/eta-history.sqlite3 --verified-config /etc/ccny-shuttle/verified-stops.json --loop
+Restart=on-failure
+RestartSec=10
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ReadWritePaths=/var/lib/ccny-shuttle
+RestrictAddressFamilies=AF_UNIX
+MemoryMax=192M
+TasksMax=16
+
+[Install]
+WantedBy=multi-user.target
