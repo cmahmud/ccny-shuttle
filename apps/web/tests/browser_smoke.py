@@ -35,10 +35,13 @@ async def verify(browser, label, width, height, mobile):
         )
         resp = await page.goto(SITE_URL, wait_until="domcontentloaded", timeout=30000)
         assert resp and resp.status == 200, "Homepage failed to load"
-        await page.wait_for_function(
-            'document.getElementById("top-status-label").textContent !== "Checking GPS"',
-            timeout=15000,
-        )
+        # Avoid wait_for_function: it uses dynamic evaluation blocked by production CSP.
+        for _ in range(50):
+            if await page.locator("#top-status-label").inner_text() != "Checking GPS":
+                break
+            await asyncio.sleep(0.2)
+        else:
+            raise AssertionError("Frontend never advanced beyond Checking GPS")
         await page.wait_for_selector(".leaflet-container", timeout=15000)
         assert await page.evaluate("Boolean(window.L)"), "Leaflet did not load"
         await page.locator('button[data-stop="145"]').click()
