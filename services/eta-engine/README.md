@@ -67,3 +67,53 @@ PYTHONPATH=services/eta-engine python3 -m ccny_eta.replay \
 Observations and events are replayed in source-event timestamp order, not request order. Re-running the replay does not duplicate event history. GPS gaps do **not** create imaginary departures; a leg can still be recorded if both the actual source-timestamped departure and next arrival were observed. This is a backfill prototype, not a background daemon.
 
 Do not publish inferred geofence detections as independently verified "actual" arrivals. For comparative accuracy we need field-verified arrival times, with student-site predictions collected only under its permitted access rules.
+
+## Continuous incremental GPS-to-stop history (development ready)
+
+`ccny_eta.stream` reads **only newly inserted** observations in the already-existing authorized Samsara GPS collector database. Unlike a full replay, it preserves the stop-detector state and the next-route-leg candidate in a separate, durable, checkpointed history database. Every batch atomically commits: derived stop arrivals/departures, completed travel legs, the source-row checkpoint, and detector state.
+
+It fails closed if a stop geofence/route/vehicle configuration changes, the GPS source has been reset, a row is malformed, or another worker advances the history checkpoint. GPS observation data is opened **read-only**. Neither script contacts Samsara or scrapes the student tracker.
+
+This worker **must not** be started with approximate map marker coordinates. Fill `private/verified-stops.json` with physically confirmed boarding positions and route edges, plus the approved shuttle vehicle IDs (same allowlist as the official GPS collector). Store that private file outside the public web root and GitHub. Example **shape only**:
+
+```json
+{
+  "allowed_vehicle_ids": ["REPLACE_WITH_AUTHORIZED_CCNY_SHUTTLE_ID"],
+  "stops": [
+    {
+      "id": "125",
+      "latitude": 0,
+      "longitude": 0,
+      "radius_m": 35,
+      "verified": true
+    }
+  ],
+  "allowed_legs": [
+    {"from": "125", "to": "marshak", "route": "south"}
+  ]
+}
+```
+
+The coordinates above are **not real**, and the example cannot be used for real tracking. It deliberately lacks a complete route. Never mark a stop `verified` until the location is physically confirmed, and use a different history database if you change the stop layout.
+
+```sh
+# One-time incremental processing, no external network access.
+PYTHONPATH=services/eta-engine python3 -m ccny_eta.stream \
+  --gps-db /path/to/authorized/gps.sqlite3 \
+  --history-db /path/to/eta-history.sqlite3 \
+  --verified-config /private/verified-stops.json --once
+
+# Continuously process newly stored GPS rows; not enabled in production.
+PYTHONPATH=services/eta-engine python3 -m ccny_eta.stream \
+  --gps-db /path/to/authorized/gps.sqlite3 \
+  --history-db /path/to/eta-history.sqlite3 \
+  --verified-config /private/verified-stops.json --loop
+```
+
+The ingestor's `live_gps: false` CLI marker means it performs historical ingestion only; it never establishes Samsara connectivity. Stop arrivals remain **inferred** from source GPS, never independently observed passenger boarding events. Live ETA predictions will require enough accurately verified stop history and validation.
+
+Run the new regression suite:
+
+```sh
+PYTHONPATH=services/eta-engine python3 -m unittest discover -s services/eta-engine/tests -v
+```
