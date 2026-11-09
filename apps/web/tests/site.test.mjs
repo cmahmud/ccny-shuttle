@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 const here = new URL("../", import.meta.url);
 const read = (name) => readFileSync(new URL(name, here), "utf8");
 const html = read("index.html");
-const css = read("alpha-v2.css");
+const css = read("alpha-v3.css");
 const js = read("app.js");
 const worker = read("service-worker.js");
 const manifest = JSON.parse(read("manifest.webmanifest"));
@@ -20,7 +20,7 @@ test("landing page has a documented independent GPS state", () => {
 });
 
 test("served CSS, JS, manifest, and service-worker filenames agree", () => {
-  for (const name of ["alpha-v2.css", "app.js", "manifest.webmanifest", "service-worker.js"]) {
+  for (const name of ["alpha-v3.css", "app.js", "manifest.webmanifest", "service-worker.js"]) {
     assert.ok(html.includes(name) || (name === "service-worker.js" && js.includes(name)), name);
   }
   assert.match(css, /\.map-panel\b/);
