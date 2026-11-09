@@ -33,7 +33,7 @@ class Observation:
             raise ValueError("Invalid longitude")
         if self.observed_at.tzinfo is None or self.received_at.tzinfo is None:
             raise ValueError("Timestamps must include a timezone")
-        if self.observed_at > self.received_at + timedelta(minutes=5):
+        if self.observed_at > self.received_at + timedelta(seconds=30):
             raise ValueError("Source timestamp is implausibly far in the future")
         if self.heading_degrees is not None and (
             not isfinite(self.heading_degrees) or not 0 <= self.heading_degrees <= 360
