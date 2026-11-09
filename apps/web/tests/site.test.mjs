@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 const read = (name) => readFileSync(new URL("../" + name, import.meta.url), "utf8");
 const html = read("index.html");
-const css = read("compact-v1.css");
-const js = read("compact-v2.js");
+const css = read("compact-v3.css");
+const js = read("compact-v4.js");
 const worker = read("service-worker.js");
 
 test("single compact tracker has no large hero or multi-page navigation", () => {
@@ -38,11 +38,11 @@ test("page has one map and compact responsive mobile layout", () => {
 });
 
 test("HTML references deployed versioned assets", () => {
-  assert.match(html, /\/compact-v1\.css/);
-  assert.match(html, /\/compact-v2\.js/);
-  assert.match(js, /\.\/compact-core-v2\.js/);
-  assert.match(html, /\/service-worker\.js|\/compact-v2\.js/);
-  for (const file of ["compact-v1.css","compact-v2.js","compact-core-v2.js"]) {
+  assert.match(html, /\/compact-v3\.css/);
+  assert.match(html, /\/compact-v4\.js/);
+  assert.match(js, /\.\/compact-core-v4\.js/);
+  assert.match(html, /\/service-worker\.js|\/compact-v4\.js/);
+  for (const file of ["compact-v3.css","compact-v4.js","compact-core-v4.js"]) {
     assert.ok(worker.includes("/" + file),file);
   }
 });
@@ -58,13 +58,13 @@ test("no guesses about ETAs or fake bus positions", () => {
   assert.match(js, /Live shuttle positions not connected/);
   assert.match(html, /Pins are approximate/);
   assert.match(js, /location|validVehicle|evaluateFeed/);
-  assert.match(js, /No confirmed live bus positions/);
+  assert.match(js, /No current bus positions/);
   assert.doesNotMatch(html, /\b\d+ min to (?:125th|145th)/);
 });
 
 test("offline caching never stores current GPS", () => {
   assert.match(worker, /url\.pathname\.startsWith\("\/api\/"\)/);
-  assert.match(worker, /ccny-smart-shuttle-compact-v2/);
+  assert.match(worker, /ccny-smart-shuttle-compact-v4/);
   assert.doesNotMatch(worker,/APP_SHELL[^;]*\/api\/v1\/vehicles/s);
 });
 
@@ -76,8 +76,8 @@ test("documented official tracker, service hours, and directions present", () =>
 });
 
 test("active module dependencies use JS served with the correct MIME type", () => {
-  assert.match(html, /\/compact-v2\.js/);
-  assert.match(js, /\.\/compact-core-v2\.js/);
+  assert.match(html, /\/compact-v4\.js/);
+  assert.match(js, /\.\/compact-core-v4\.js/);
   assert.doesNotMatch(js, /from \"[^\"]+\.mjs\"/);
   assert.doesNotMatch(worker, /\/compact-core\.mjs/);
 });
