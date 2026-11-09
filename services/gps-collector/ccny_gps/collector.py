@@ -9,6 +9,7 @@ class PollResult:
     pages: int
     received: int
     inserted: int
+    has_backlog: bool = False
 
 
 class Collector:
@@ -20,10 +21,16 @@ class Collector:
         self.feed = feed
         self.store = store
         self.max_pages = max_pages
+        # Real official feeds MUST bind their allowlist to the cursor. Synthetic
+        # feed fixtures without vehicle_ids are exempt (unit-test only).
+        scope = getattr(feed, "vehicle_ids", None)
+        if scope is not None:
+            self.store.bind_vehicle_scope("samsara", frozenset(scope))
 
     def poll(self) -> PollResult:
         cursor = self.store.get_cursor("samsara")
         pages = received = inserted = 0
+        backlog = False
         while pages < self.max_pages:
             page = self.feed.fetch(cursor)
             if page.has_next_page and page.end_cursor == cursor:
@@ -33,6 +40,7 @@ class Collector:
             inserted += count
             pages += 1
             cursor = page.end_cursor
-            if not page.has_next_page:
+            backlog = page.has_next_page
+            if not backlog:
                 break
-        return PollResult(pages, received, inserted)
+        return PollResult(pages, received, inserted, backlog)
