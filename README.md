@@ -107,3 +107,18 @@ The independent mobile-first beta is reachable at **https://shuttle.syndrid.com*
 **Important:** The site is live, but **the independent live GPS feed and shuttle ETA recommendations are not operational yet**. The app intentionally shows an unavailable status rather than synthetic buses or made-up ETAs. Next: confirm an authorized Samsara data connection, collect source-timestamped shuttle observations and validate arrivals before turning on the prediction engine.
 
 Web tests: `node --test apps/web/tests/*.test.mjs`. Backend tests: `python3 -m unittest discover -s services/gps-collector/tests -v`.
+
+## Historical stop logging and ETA baseline
+
+The first historical ETA engine is in `services/eta-engine/` (development-only; not deployed to the public website). It provides:
+
+- Two-observation geofence-based inferred stop arrivals/departures, requiring separately **field-verified** boarding-point coordinates and shuttle-only GPS.
+- Idempotent SQLite persistence for stop events and completed directed travel legs.
+- Read-only replay of GPS history already captured by the authorized collector. No verified CCNY stop geofence configuration is bundled, so real event collection is **not yet running**.
+- Historical route-specific ETA time windows using recent samples and local New York commute-period context. Estimates become unavailable with inadequate history or expired GPS.
+- A paired comparison function for independently verified actual arrivals versus our predictions and **permitted** student-site ETA snapshots. This does not retrieve the student's restricted endpoints.
+- A clearly identified **synthetic demo** and offline tests with no GPS secrets or remote calls.
+
+Run: `PYTHONPATH=services/eta-engine python3 -m unittest discover -s services/eta-engine/tests -v`. See `services/eta-engine/README.md` for configuration requirements and limitations.
+
+**Integration policy:** Samsara/CCNY is the intended authoritative GPS source (subject to approved programmatic access); the student-made tracker is an optional ETA benchmark, not an independent GPS backup. Neither live source is currently ingesting into our service.
