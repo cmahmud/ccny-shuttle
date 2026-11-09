@@ -1,5 +1,5 @@
 [Unit]
-Description=CCNY Smart Shuttle read-only GPS status API (no live collector enabled)
+Description=CCNY Shuttle read-only GPS status API (official or attributed public relay)
 After=network.target
 
 [Service]
