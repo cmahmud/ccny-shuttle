@@ -104,7 +104,7 @@ The independent mobile-first beta is reachable at **https://shuttle.syndrid.com*
 - `services/gps-collector`: credential-gated prototype with durable incremental storage, source-GPS freshness, transport-health separation and a local-only status API.
 - `docs/DEPLOYMENT.md`: verified infrastructure, health checks, CSS cache-versioning and rollback.
 
-**Important:** The site is live, but **the independent live GPS feed and shuttle ETA recommendations are not operational yet**. The app intentionally shows an unavailable status rather than synthetic buses or made-up ETAs. Next: confirm an authorized Samsara data connection, collect source-timestamped shuttle observations and validate arrivals before turning on the prediction engine.
+**Update (November 9):** A limited **student-public GPS relay** is collecting real source-timestamped bus reports. It is **not independent Samsara telemetry**: the student's website relays GPS data it obtains from CCNY's tracker. Our site identifies the source as `GPS via student`, shows verified-fresh reports or explicitly delayed last-seen reports, and never fabricates bus positions or ETAs. Official API access and calibrated arrival predictions are still unavailable.
 
 Web tests: `node --test apps/web/tests/*.test.mjs`. Backend tests: `python3 -m unittest discover -s services/gps-collector/tests -v`.
 
@@ -121,4 +121,4 @@ The first historical ETA engine is in `services/eta-engine/` (development-only; 
 
 Run: `PYTHONPATH=services/eta-engine python3 -m unittest discover -s services/eta-engine/tests -v`. See `services/eta-engine/README.md` for configuration requirements and limitations.
 
-**Integration policy:** Samsara/CCNY is the intended authoritative GPS source (subject to approved programmatic access); the student-made tracker is an optional ETA benchmark, not an independent GPS backup. Neither live source is currently ingesting into our service.
+**Integration policy:** Samsara/CCNY remains the preferred direct GPS source (not connected). The student-made tracker supplies a clearly attributed, third-party browser relay and remains an optional ETA benchmark. Both trackers depend on the same upstream, so this relay cannot independently back up a Samsara hardware outage. See `docs/PUBLIC_GPS_RELAY.md`.
