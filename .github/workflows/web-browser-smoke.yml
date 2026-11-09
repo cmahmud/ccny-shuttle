@@ -1,0 +1,32 @@
+name: Shuttle browser smoke
+
+on:
+  pull_request:
+    paths:
+      - "apps/web/**"
+      - ".github/workflows/web-browser-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Chromium browser test dependencies
+        run: |
+          python -m pip install playwright==1.57.0
+          python -m playwright install --with-deps chromium
+      - name: Serve web app locally
+        run: |
+          python -m http.server 9000 --directory apps/web > /tmp/ccny-shuttle-server.log 2>&1 &
+      - name: Check map, GPS state, stop tabs, and mobile layout
+        env:
+          SHUTTLE_SITE_URL: http://127.0.0.1:9000/
+        run: python apps/web/tests/browser_smoke.py
