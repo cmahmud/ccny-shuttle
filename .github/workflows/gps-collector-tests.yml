@@ -20,3 +20,9 @@ jobs:
           python-version: '3.12'
       - name: Run synthetic-fixture unit tests (no network)
         run: python -m unittest discover -s services/gps-collector/tests -v
+      - name: Set up Node for web integrity tests
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Run web integrity and GPS labeling tests
+        run: node --test apps/web/tests/*.test.mjs
