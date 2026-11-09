@@ -29,3 +29,14 @@ The prototype in `services/gps-collector/` implements a source-timestamped norma
 - https://ccnyshuttlebus.com/
 
 Do not describe the collector as live until the GPS source is validated.
+
+## Follow-up implementation, November 9, 2026
+
+- Added a local, read-only HTTP status interface at `/health` and `/v1/vehicles` that binds to `127.0.0.1` only. No public service is deployed.
+- The response distinguishes **source GPS observation freshness** (`sourceState`) from **API polling/transport health** (`transportState`), plus `observedAt`, `receivedAt`, `lastSuccessfulPoll`, and GPS age. All returned locations are explicitly labeled `confirmed`, never predicted.
+- Each completed feed page updates the checkpoint cursor and last-successful-poll time in the same SQLite transaction. This allows empty successful polls to be recognized without asserting new GPS.
+- **21 unit tests passed**, with a successful local HTTP smoke test. All observations in tests were synthetic.
+- Official feed documentation was rechecked: cursor-based `/fleet/vehicles/stats/feed?types=gps`, read-vehicle-statistics scope, `vehicleIds` filtering, and a **minimum five-second interval** after an exhausted feed. Cursors expire after 30 days; long outages will require an explicit recovery/backfill policy.
+- Browser-network inspection is still blocked: the isolated Linux browser reports `ERR_BLOCKED_BY_ADMINISTRATOR`, and Playwright's Chromium headless browser distribution does not support the existing Ubuntu 26.04 ARM64 VPS environment. **Neither establishes that CCNY's public viewer is unavailable to normal users.** No workaround or bypass was attempted.
+
+Live collection remains **not verified**, and the system must not be publicly labeled operational until authorized fresh data is received.
