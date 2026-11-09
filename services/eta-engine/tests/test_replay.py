@@ -91,6 +91,19 @@ class ReplayTests(unittest.TestCase):
         self.assertEqual(store.count()["stop_events"],3)
         store.close()
 
+    def test_explicit_third_party_replay_only_reads_that_source(self):
+        db=sqlite3.connect(self.gps)
+        db.execute("INSERT INTO observations(source,vehicle_id,observed_at,latitude,longitude,speed_mph) VALUES(?,?,?,?,?,?)",
+          ("student_public","shuttle-A",BASE.isoformat(),CENTER[0],CENTER[1],None))
+        db.commit();db.close()
+        third=read_fixes(str(self.gps),frozenset({"shuttle-A"}),source="student_public")
+        self.assertEqual(len(third),1)
+        self.assertEqual(third[0].source,"student_public")
+        normal=read_fixes(str(self.gps),frozenset({"shuttle-A"}),source="samsara")
+        self.assertEqual(len(normal),8)
+        with self.assertRaises(ValueError):
+            read_fixes(str(self.gps),frozenset({"shuttle-A"}),source="incorrect")
+
     def test_missing_gps_database_is_rejected(self):
         with self.assertRaises(FileNotFoundError):
             read_fixes(str(self.root/"no.sqlite3"),frozenset({"shuttle-A"}))
