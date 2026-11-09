@@ -27,3 +27,21 @@ This prototype stores observations and cursors transactionally in a local SQLite
 The API's initial response may include the last known position of an inactive vehicle, so the presence of a position does not establish a live bus.
 
 No production service has been deployed.
+
+## Local GPS status API (no Samsara token required)
+
+```sh
+# Inspect only the observations actually saved in local development SQLite.
+PYTHONPATH=services/gps-collector python3 -m ccny_gps --status
+
+# Local-only read API; not a public deployment.
+PYTHONPATH=services/gps-collector python3 -m ccny_gps --serve --port 8766
+curl http://127.0.0.1:8766/health
+curl http://127.0.0.1:8766/v1/vehicles
+```
+
+The API binds to `127.0.0.1` only. Freshness uses the original GPS event timestamp, **not** the last successful HTTP poll time. The `lastSuccessfulPoll` value tracks transport health separately. Endpoints do not extrapolate any coordinates and will display `no_data` / `stale` rather than fake live updates. Before exposing an external API, add authentication, rate limiting, access controls, production storage and explicit operational permission.
+
+Samsara feed cursors expire after 30 days. After such an outage, historical backfill (using authorized stats/history access) should be used rather than silently losing the gap by resetting cursors.
+
+The status API additionally reports `transportState` (`never_connected`, `healthy`, `delayed`, or `offline`) separately from `sourceState` (`no_data`, `live`, `delayed`, `stale`). Transport thresholds are provisional and are **not** evidence of actual GPS freshness.
