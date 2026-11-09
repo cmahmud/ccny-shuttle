@@ -53,3 +53,17 @@ Expected JSON when fresh: `source=student_public`, `sourceState=live`, `transpor
 - Evaluate event timing versus independently observed actual arrivals, and calibrate trip and Marshak dwell-time models.
 - Compare our predictions on matching trips against a permitted student-site benchmark only. Source-site predictions are **not** ground truth.
 - Add raw position retention management after defining CCNY's data-handling expectations and ensuring the stop-event derivative pipeline is replay-safe.
+
+## GPS quality and movement anomaly checks
+
+The public relay rejects duplicate/out-of-order source fixes for each vehicle and implausible instantaneous jumps over 35 m/s (plus a 55 m GPS-jitter allowance), using the prior stored observation and its original source timestamp. This prevents transient GPS glitches from appearing as rapid shuttle movements on the map. Normal vehicles are not speed-limited beyond this outlier threshold, and the filter does not extrapolate missing positions.
+
+A **read-only aggregate quality** command reports the source timestamp delay, per-vehicle reporting cadence and gaps, fresh-versus-delayed proportion, and sample counts without exposing individual coordinates or vehicle IDs:
+
+```sh
+sudo -u ccnyshuttle env PYTHONPATH=/opt/ccny-shuttle/services/gps-collector \
+  /usr/bin/python3 -m ccny_gps.quality \
+  --db /var/lib/ccny-shuttle/gps.sqlite3 --hours 24
+```
+
+Early GPS sampling quality is not the same thing as ETA or stop-arrival accuracy. Keep collection running over multiple service days before assigning statistical confidence or predicting Marshak dwell times.
