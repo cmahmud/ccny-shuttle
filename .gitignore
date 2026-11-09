@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+*.egg-info/
+.coverage
+htmlcov/
+
+# Node and frontend
+node_modules/
+.next/
+out/
+dist/
+build/
+.turbo/
+*.tsbuildinfo
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.key
+secrets/
+credentials/
+auth.json
+cookies.json
+storage-state*.json
+*.har
+
+# GPS / network capture: keep sanitized fixtures only
+*.sqlite
+*.sqlite3
+*.db
+*.pcap
+*.pcapng
+*.trace
+playwright-report/
+test-results/
+recordings/
+raw-captures/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
