@@ -1,159 +1,160 @@
-import { classifySnapshot, verifiedVehicles, readableAge, nyTime, directionsUrl, STATIONS, DESTINATIONS } from "./gps.js";
+"use strict";
 
-const $ = (id) => document.getElementById(id);
-const REFRESH_INTERVAL_MS = 15000;
-let latestSnapshot = null;
-let refreshing = false;
+const API_ENDPOINT = "/api/v1/vehicles";
+const SOURCE_URL = "https://cloud.samsara.com/o/4010168/fleet/viewer/FJMjrX1YlqCqlGxIKkXY";
+const STOPS = [
+  // Coordinates are nearby station/building landmarks, NOT surveyed shuttle boarding points.
+  { name: "125th Street", lat: 40.81111, lon: -73.95311, type: "stop", description: "Shuttle stop near Post Office, between St. Nicholas & Morningside" },
+  { name: "145th Street", lat: 40.82404, lon: -73.944769, type: "stop", description: "Shuttle stop near Dunkin', between St. Nicholas & Edgecombe" },
+  { name: "North Academic Center", lat: 40.8200332, lon: -73.9497487, type: "campus", description: "Campus building near shuttle stop on Convent Avenue" },
+];
+const CAMPUS_DESTINATIONS = {
+  nac: "North Academic Center CCNY New York",
+  marshak: "Marshak Science Building City College New York",
+  shepard: "Shepard Hall City College New York",
+  steinman: "Steinman Hall City College New York",
+  spitzer: "Spitzer School of Architecture City College New York",
+};
+const RECHECK_MS = 15000;
+let map = null;
+let vehicleMarkers = new Map();
+let refreshTimeout = null;
 
-function node(tag, className, text) {
-  const element = document.createElement(tag);
-  if (className) element.className = className;
-  if (text !== undefined) element.textContent = text;
-  return element;
+function el(id) { return document.getElementById(id); }
+function setText(id, content) { const node = el(id); if (node) node.textContent = content; }
+function humanTime(iso) {
+  if (!iso || Number.isNaN(Date.parse(iso))) return "Never";
+  return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
-
-function renderEmpty(title, description) {
-  const wrap = node("div", "tracker-empty");
-  const illustration = node("div", "empty-illustration");
-  illustration.setAttribute("aria-hidden", "true");
-  illustration.textContent = "🚌";
-  illustration.style.fontSize = "37px";
-  wrap.append(illustration, node("h3", "", title), node("p", "", description));
-  $("trackerBody").replaceChildren(wrap);
+function lastConfirmedAge(seconds) {
+  if (typeof seconds !== "number" || !Number.isFinite(seconds)) return "Unknown age";
+  if (seconds < 60) return Math.floor(seconds) + " seconds ago";
+  if (seconds < 3600) return Math.floor(seconds / 60) + " min ago";
+  return Math.floor(seconds / 3600) + " hr ago";
 }
-
-function renderVehicles(vehicles) {
-  const wrap = node("div", "tracker-empty");
-  wrap.style.justifyContent = "flex-start";
-  wrap.style.alignItems = "stretch";
-  wrap.style.textAlign = "left";
-  const heading = node("h3", "", `${vehicles.length} confirmed vehicle${vehicles.length === 1 ? "" : "s"}`);
-  heading.style.margin = "12px 0 16px";
-  const list = node("div", "vehicle-list");
-  for (const vehicle of vehicles) {
-    const line = node("div", "vehicle-line");
-    const left = node("div");
-    // No claim about a bus's intended next stop until route classification exists.
-    const shortId = vehicle.id.length > 10 ? vehicle.id.slice(-6) : vehicle.id;
-    left.append(node("strong", "", `Vehicle ···${shortId}`), node("small", "", `GPS observed ${nyTime(vehicle.observedAt)} ET`));
-    const right = node("div", "vehicle-age");
-    right.append(node("span", "", readableAge(vehicle.age)), node("small", "", vehicle.freshness === "fresh" ? "Confirmed GPS" : "Older GPS"));
-    line.append(left, right);
-    list.append(line);
+function encodeDirections(fromName, destinationName) {
+  return "https://www.google.com/maps/dir/?api=1&origin=" +
+    encodeURIComponent(fromName + ", Manhattan, New York") +
+    "&destination=" + encodeURIComponent(destinationName) +
+    "&travelmode=walking";
+}
+function initDestination() {
+  const select = el("destination-select");
+  if (!select) return;
+  select.addEventListener("change", () => {
+    const value = CAMPUS_DESTINATIONS[select.value] || CAMPUS_DESTINATIONS.nac;
+    const anchors = document.querySelectorAll("[data-walk-link]");
+    for (const anchor of anchors) anchor.href = encodeDirections(anchor.dataset.walkLink, value);
+  });
+  select.dispatchEvent(new Event("change"));
+}
+function initMap() {
+  const container = el("map");
+  if (!container) return;
+  if (typeof window.L === "undefined") {
+    container.innerHTML = '<div class="map-placeholder">Map temporarily unavailable. Use the stop links below for directions.</div>';
+    return;
   }
-  wrap.append(heading, list);
-  $("trackerBody").replaceChildren(wrap);
+  container.textContent = "";
+  map = window.L.map(container, { zoomControl: false, scrollWheelZoom: false });
+  window.L.control.zoom({ position: "bottomright" }).addTo(map);
+  window.L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors',
+    maxZoom: 19,
+  }).addTo(map);
+  const bounds = window.L.latLngBounds();
+  for (const stop of STOPS) {
+    const icon = window.L.divIcon({
+      className: "",
+      html: '<div class="map-pin ' + (stop.type === "campus" ? "map-pin-campus" : "") + '"></div>',
+      iconSize: [19, 19],
+      iconAnchor: [10, 10],
+    });
+    window.L.marker([stop.lat, stop.lon], { icon })
+      .bindPopup("<strong>" + stop.name + "</strong><div>" + stop.description + "</div><small>Approximate stop area</small>")
+      .addTo(map);
+    bounds.extend([stop.lat, stop.lon]);
+  }
+  map.fitBounds(bounds.pad(.22), { maxZoom: 14 });
+  window.addEventListener("resize", () => map.invalidateSize());
 }
-
-function renderSnapshot(snapshot) {
-  const assessment = classifySnapshot(snapshot);
-  const isLive = assessment.status === "live";
-  $("headerStatus").className = `live-pill ${isLive ? "is-live" : "is-offline"}`;
-  $("headerStatusText").textContent = assessment.label;
-  $("feedState").textContent = assessment.label;
-  $("feedState").className = `feed-tag ${isLive ? "feed-live" : assessment.status === "delayed" ? "feed-delayed" : "feed-unavailable"}`;
-
-  const transport = snapshot?.transportState;
-  $("transportLabel").textContent = ({
-    healthy: "Online",
-    delayed: "Slow updates",
-    offline: "Disconnected",
-    never_connected: "Not configured",
-  })[transport] || "Unavailable";
-  $("transportDot").className = `small-dot ${transport === "healthy" ? "dot-green" : "dot-amber"}`;
-
-  const vehicles = verifiedVehicles(snapshot);
-  const latestAt = vehicles
-    .map((v) => v.observedAt)
-    .filter((value) => Number.isFinite(Date.parse(value)))
-    .sort()
-    .at(-1);
-  $("gpsTimestamp").textContent = latestAt ? `${nyTime(latestAt)} ET` : "—";
-
-  if (vehicles.length) {
-    renderVehicles(vehicles);
+function clearVehicleMarkers() {
+  for (const marker of vehicleMarkers.values()) if (map) map.removeLayer(marker);
+  vehicleMarkers.clear();
+}
+function renderVehicles(data) {
+  clearVehicleMarkers();
+  if (!map || !Array.isArray(data.vehicles)) return;
+  const nowMs = Date.parse(data.generatedAt) || Date.now();
+  for (const vehicle of data.vehicles) {
+    const coords = [Number(vehicle.latitude), Number(vehicle.longitude)];
+    if (coords.some(value => !Number.isFinite(value)) || Math.abs(coords[0]) > 90 || Math.abs(coords[1]) > 180) continue;
+    const gpsAge = (nowMs - Date.parse(vehicle.observedAt)) / 1000;
+    // Never pin a vehicle whose GPS position is already too old to describe its present position.
+    if (!Number.isFinite(gpsAge) || gpsAge > 120 || gpsAge < -300 || vehicle.locationKind !== "confirmed") continue;
+    const icon = window.L.divIcon({
+      className: "",
+      html: '<div class="map-pin map-pin-shuttle"></div>',
+      iconSize: [19, 19], iconAnchor: [10, 10],
+    });
+    const marker = window.L.marker(coords, { icon })
+      .bindPopup('<strong>Shuttle ' + String(vehicle.vehicleId).replace(/[<>&"]/g, "") +
+                 '</strong><div>Confirmed GPS at ' + humanTime(vehicle.observedAt) +
+                 '</div><div>Source age: ' + lastConfirmedAge(Math.max(0, gpsAge)) + '</div>')
+      .addTo(map);
+    vehicleMarkers.set(vehicle.vehicleId, marker);
+  }
+}
+function updateStatus(data) {
+  const sourceState = data && typeof data.sourceState === "string" ? data.sourceState : "no_data";
+  const transportState = data && typeof data.transportState === "string" ? data.transportState : "never_connected";
+  const node = el("top-status");
+  const banner = el("source-banner");
+  const live = sourceState === "live" && transportState === "healthy" &&
+    Array.isArray(data.vehicles) && data.vehicles.some(v => v.freshness === "fresh");
+  if (node) {
+    node.classList.toggle("live", live);
+    node.lastChild.textContent = live ? "GPS connected" : "GPS unavailable";
+  }
+  if (banner) banner.classList.toggle("connected", live);
+  if (live) {
+    setText("banner-title", "GPS positions are being received");
+    setText("banner-detail", "Confirmed locations can appear on the map. Stop arrival predictions are not available yet.");
+    setText("banner-state", "GPS CONNECTED");
   } else {
-    renderEmpty(
-      assessment.status === "error" ? "GPS service unavailable" : "Live GPS coming soon",
-      assessment.status === "error"
-        ? "We couldn't verify shuttle locations. Try again later or open CCNY's official tracker."
-        : "Our independent shuttle GPS feed is not connected yet. For live bus positions, use CCNY's official tracker linked to the right."
-    );
+    setText("banner-title", sourceState === "stale" ? "GPS positions are outdated" : "Live shuttle GPS not connected yet");
+    setText("banner-detail", "Arrival estimates are unavailable. For current shuttle positions, use the official CCNY tracker.");
+    setText("banner-state", transportState === "offline" ? "COLLECTOR OFFLINE" : "SOURCE OFFLINE");
   }
+  setText("refreshed-label", live ? "GPS checked at " + humanTime(data.generatedAt) : "GPS: unavailable");
+  renderVehicles(data);
 }
-
-async function refresh() {
-  if (refreshing) return;
-  refreshing = true;
-  const button = $("refreshButton");
-  button.classList.add("busy");
-  button.disabled = true;
+async function refreshStatus() {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 7500);
+  const timeout = setTimeout(() => controller.abort(), 5000);
   try {
-    const response = await fetch("/api/vehicles", { cache: "no-store", signal: controller.signal });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const snapshot = await response.json();
-    latestSnapshot = snapshot;
-    renderSnapshot(snapshot);
-  } catch {
-    // Never reuse old GPS coordinates as fresh data after an HTTP error.
-    renderSnapshot(null);
-    $("transportLabel").textContent = navigator.onLine ? "Request failed" : "Device offline";
+    const response = await fetch(API_ENDPOINT, { cache: "no-store", signal: controller.signal });
+    if (!response.ok) throw new Error("GPS status fetch failed: " + response.status);
+    const data = await response.json();
+    if (!data || !Array.isArray(data.vehicles)) throw new Error("Invalid status response");
+    updateStatus(data);
+  } catch (_) {
+    clearVehicleMarkers();
+    updateStatus({ sourceState: "no_data", transportState: "offline", vehicles: [] });
+    setText("banner-detail", "Status service is unreachable. No live arrivals are available. Use the official CCNY tracker.");
   } finally {
-    clearTimeout(timeoutId);
-    button.classList.remove("busy");
-    button.disabled = false;
-    refreshing = false;
+    clearTimeout(timeout);
+    refreshTimeout = setTimeout(refreshStatus, RECHECK_MS);
   }
 }
-
-function renderPlan() {
-  const station = $("stationSelect").value;
-  const destination = $("destinationSelect").value;
-  const url = directionsUrl(station, destination);
-  const result = $("planResult");
-  result.replaceChildren();
-  const notice = node("span", "planner-result-icon", "ℹ");
-  const body = node("div");
-  const heading = node("strong", "", "Trip options are not live yet.");
-  const description = node("span", "", ` We cannot recommend whether to wait for a shuttle at ${STATIONS[station].name} without current GPS and arrival information. `);
-  body.append(heading, description);
-  if (url) {
-    const link = node("a", "", "View walking directions ↗");
-    link.href = url;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    body.append(link);
+document.addEventListener("DOMContentLoaded", () => {
+  initDestination();
+  initMap();
+  refreshStatus();
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/service-worker.js").catch(() => {});
+    });
   }
-  result.append(notice, body);
-}
-
-function updateConnectivity() {
-  if (!navigator.onLine) {
-    $("headerStatus").className = "live-pill is-offline";
-    $("headerStatusText").textContent = "Device offline";
-    $("transportLabel").textContent = "Device offline";
-    $("feedState").textContent = "Offline";
-    $("feedState").className = "feed-tag feed-unavailable";
-    renderEmpty("You're offline", "The app can show cached pickup information, but it cannot receive new shuttle positions until your internet connection returns.");
-  } else {
-    refresh();
-  }
-}
-
-$("refreshButton").addEventListener("click", refresh);
-$("planButton").addEventListener("click", renderPlan);
-window.addEventListener("online", updateConnectivity);
-window.addEventListener("offline", updateConnectivity);
-document.addEventListener("visibilitychange", () => {
-  if (!document.hidden && navigator.onLine) refresh();
+  window.addEventListener("beforeunload", () => clearTimeout(refreshTimeout));
 });
-setInterval(() => {
-  if (!document.hidden && navigator.onLine) refresh();
-}, REFRESH_INTERVAL_MS);
-
-if ("serviceWorker" in navigator && window.isSecureContext) {
-  window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
-}
-refresh();
