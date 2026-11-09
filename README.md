@@ -2,7 +2,18 @@
 
 An independent, student-focused CCNY shuttle tracker designed to answer **which station should I exit at, can I catch the next shuttle, and when will I reach my building?**
 
-> **Status:** Research and scaffolding. No verified independent live GPS feed yet. This is an independent project, not an official CCNY/Samsara service.
+> **Status (November 9, 2026):** Public alpha available at **https://shuttle.syndrid.com**. The website and read-only GPS status API are online, but **no independently verified live GPS source or real ETAs are available yet**. Independent student project, not an official CCNY/Samsara service.
+
+## Public alpha
+
+- **Website:** https://shuttle.syndrid.com (HTTPS, mobile-friendly, installable PWA)
+- **Backend status:** https://shuttle.syndrid.com/api/v1/vehicles
+- **Health:** https://shuttle.syndrid.com/api/health
+- **Web source:** `apps/web/` (plain HTML/CSS/JS; zero build-runtime dependencies)
+- **VPS configuration:** `infra/nginx-shuttle.conf` and `infra/ccny-shuttle-status.service`
+- **Current limitation:** Displays official stop locations and honest `no_data` GPS state. No verified live GPS or shuttle ETA integration. Never use it as a live departure countdown yet.
+
+The status process binds to `127.0.0.1:8766`. Nginx serves static assets and proxies only allowlisted read-only status endpoints. The SSL certificate covers only the shuttle hostname. No other site configuration was intentionally changed.
 
 ## Goals
 
