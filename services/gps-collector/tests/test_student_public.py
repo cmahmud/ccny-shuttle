@@ -126,6 +126,32 @@ class PublicRelayTests(unittest.TestCase):
                 self.assertEqual(len(status["vehicles"]),2)
             finally:store.close()
 
+    def test_impossible_gps_jump_is_ignored_even_with_fresh_timestamp(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store=ObservationStore(str(Path(tmp)/"observations.sqlite3"))
+            try:
+                worker=PublicBrowserRelay(store,"/fake/path")
+                self.assertEqual(worker.accept_payload(payload(),NOW),2)
+                later=NOW+timedelta(seconds=15)
+                jumped=payload(when=later)
+                jumped["live"]["vehicles"][0]["lat"]=40.85
+                self.assertEqual(worker.accept_payload(jumped,later),1)
+                latest={o.vehicle_id:o for o in store.latest_observations("student_public")}
+                self.assertAlmostEqual(latest["test-89"].latitude,40.8205)
+                self.assertEqual(store.count_observations(),3)
+            finally:store.close()
+
+    def test_duplicate_source_fix_does_not_create_new_position(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store=ObservationStore(str(Path(tmp)/"observations.sqlite3"))
+            try:
+                worker=PublicBrowserRelay(store,"/fake/path")
+                self.assertEqual(worker.accept_payload(payload(),NOW),2)
+                newer=payload(when=NOW+timedelta(seconds=20))
+                newer["live"]["vehicles"][0]["observedAt"]=ms(NOW-timedelta(seconds=5))
+                self.assertEqual(worker.accept_payload(newer,NOW+timedelta(seconds=20)),1)
+            finally:store.close()
+
     def test_official_live_takes_priority_over_student(self):
         with tempfile.TemporaryDirectory() as tmp:
             store=ObservationStore(str(Path(tmp)/"gps.db"))
