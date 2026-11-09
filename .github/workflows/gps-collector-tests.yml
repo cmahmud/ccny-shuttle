@@ -18,5 +18,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Run synthetic-fixture unit tests (no network)
+      - name: Run synthetic-fixture GPS collector tests (no network)
         run: python -m unittest discover -s services/gps-collector/tests -v
+      - name: Run web alpha smoke tests (no network)
+        run: python -m unittest discover -s apps/web/tests -p "*.py" -v
