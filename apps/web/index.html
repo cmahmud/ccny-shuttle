@@ -1,132 +1,113 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#161a31">
-  <meta name="description" content="CCNY Smart Shuttle — campus shuttle stops, service status, and a foundation for reliable arrival guidance. Independent student project.">
+  <meta name="theme-color" content="#171b38">
+  <meta name="description" content="CCNY Shuttle: pickup stops, live GPS status, map and walking routes in one place.">
   <meta name="color-scheme" content="light">
+  <title>CCNY Shuttle · Tracker</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin>
-  <title>CCNY Smart Shuttle — Know your next move</title>
-  <link rel="stylesheet" href="/alpha-v3.css">
+  <link rel="stylesheet" href="/compact-v1.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script type="module" src="/compact-v1.js"></script>
 </head>
 <body>
-  <a class="skip-link" href="#main">Skip to main content</a>
-  <div class="site-shell">
-    <header class="topbar">
-      <div class="topbar-inner">
-        <a class="brand" href="/" aria-label="CCNY Smart Shuttle home">
-          <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><rect x="4" y="6" width="24" height="20" rx="6" fill="currentColor" fill-opacity=".15"/><path d="M9 11h14v10H9zM9 16h14M11 24v2m10-2v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="11" cy="22" r="1" fill="currentColor"/><circle cx="21" cy="22" r="1" fill="currentColor"/></svg></span>
-          <span class="brand-name">CCNY <strong>Shuttle</strong><span class="brand-tag">BETA</span></span>
-        </a>
-        <nav class="nav" aria-label="Main navigation">
-          <a href="#map-section">Live map</a>
-          <a href="#stops">Stops</a>
-          <a href="#how-it-works">About</a>
-        </nav>
-        <div class="header-actions">
-          <span class="source-chip" id="top-status" role="status"><span class="status-indicator"></span>Checking GPS</span>
-          <a class="official-link" href="https://www.ccny.cuny.edu/about/gettingthere" target="_blank" rel="noopener noreferrer">Official schedule <span aria-hidden="true">↗</span></a>
-        </div>
+  <a class="skip-link" href="#tracker">Skip to tracker</a>
+  <header class="header">
+    <div class="shell header-inner">
+      <a href="/" class="brand" aria-label="CCNY Shuttle home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 34 34" fill="none"><rect x="5" y="6" width="24" height="22" rx="6" stroke="currentColor" stroke-width="2.4"/><path d="M9 16h16M12 25v3m10-3v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="10" y="10" width="14" height="4" rx="1" fill="currentColor"/><circle cx="11" cy="22" r="2" fill="currentColor"/><circle cx="23" cy="22" r="2" fill="currentColor"/></svg>
+        </span>
+        <span class="brand-text">CCNY <strong>Shuttle</strong></span>
+        <span class="beta">BETA</span>
+      </a>
+      <div class="header-actions">
+        <span class="status-pill" id="top-status" role="status"><span class="status-dot"></span><span id="top-status-label">Checking GPS</span></span>
+        <a class="header-official" href="https://cloud.samsara.com/o/4010168/fleet/viewer/FJMjrX1YlqCqlGxIKkXY" target="_blank" rel="noopener noreferrer">Official tracker <span aria-hidden="true">↗</span></a>
       </div>
-    </header>
-    <main id="main">
-      <section class="hero">
-        <div class="hero-inner">
-          <div class="eyebrow"><span class="eyebrow-line"></span> YOUR CAMPUS COMMUTE, SIMPLIFIED</div>
-          <h1>Less guessing.<br><span>More getting there.</span></h1>
-          <p class="hero-description">One place for CCNY shuttle stops, verified GPS status, and the journey planning tools we're building next.</p>
-          <div class="hero-chips"><span>📍 125th &amp; 145th</span><span>🏛️ City College of New York</span><span>🕒 Service information</span></div>
-        </div>
-      </section>
-      <div class="content">
-        <div id="source-banner" class="alert-banner" role="status" aria-live="polite">
-          <div class="alert-icon" aria-hidden="true">!</div>
-          <div><strong id="banner-title">Live shuttle GPS not connected yet</strong><p id="banner-detail">We're building the independent GPS connection. Arrival estimates are unavailable until verified data is flowing.</p></div>
-          <span class="banner-state" id="banner-state">SOURCE OFFLINE</span>
-        </div>
-        <section class="journey-grid" aria-label="Journey planning">
-          <article class="panel plan-panel">
-            <div class="section-overline">YOUR ROUTE</div>
-            <h2>Where are you headed?</h2>
-            <p class="muted">Pick your destination. Personalized recommendations will become available once the GPS feed is verified.</p>
-            <label for="destination-select" class="field-label">Destination on campus</label>
-            <div class="select-wrap">
-              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h18M5 20V7l7-4 7 4v13M9 11h1m4 0h1M9 15h1m4 0h1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-              <select id="destination-select">
-                <option value="nac">North Academic Center (NAC)</option>
-                <option value="marshak">Marshak Science Building</option>
-                <option value="shepard">Shepard Hall</option>
-                <option value="steinman">Steinman Hall (Engineering)</option>
-                <option value="spitzer">Spitzer Hall (Architecture)</option>
-              </select>
-              <span class="select-chevron" aria-hidden="true">⌄</span>
-            </div>
-            <div class="recommendation">
-              <div class="recommendation-head"><span class="recommendation-icon" aria-hidden="true">✦</span> SMART STATION RECOMMENDATION <span class="soon-tag">COMING SOON</span></div>
-              <div class="recommendation-unavailable">Not enough live data yet</div>
-              <p>We'll compare station exits, shuttle arrivals, and walking alternatives to find your best route to campus.</p>
-            </div>
-            <div class="walking-fallback">
-              <div class="walking-title">WALKING ALTERNATIVES <span>NO SHUTTLE NEEDED</span></div>
-              <div class="walking-links">
-                <a data-walk-link="125th Street and St Nicholas Avenue" href="https://www.google.com/maps/search/?api=1&amp;query=West+125th+Street+St+Nicholas+Ave+New+York" target="_blank" rel="noopener noreferrer">125th Street ↗</a>
-                <a data-walk-link="145th Street and St Nicholas Avenue" href="https://www.google.com/maps/search/?api=1&amp;query=West+145th+Street+St+Nicholas+Ave+New+York" target="_blank" rel="noopener noreferrer">145th Street ↗</a>
-                <a data-walk-link="137th Street City College Station Broadway" href="https://www.google.com/maps/search/?api=1&amp;query=137th+Street+City+College+Station" target="_blank" rel="noopener noreferrer">137th Street (1 train) ↗</a>
-              </div>
-            </div>
-            <div class="plan-footnote"><span aria-hidden="true">ⓘ</span> Don't rely on this beta for departure timing yet. Use the official tracker for current vehicle positions.</div>
-            <a class="button-primary" href="https://cloud.samsara.com/o/4010168/fleet/viewer/FJMjrX1YlqCqlGxIKkXY" target="_blank" rel="noopener noreferrer">Open official GPS tracker <span aria-hidden="true">↗</span></a>
-          </article>
-          <article class="panel map-panel" id="map-section">
-            <div class="map-heading">
-              <div><div class="section-overline">AROUND CAMPUS</div><h2>Shuttle stop map</h2></div>
-              <span class="map-caption">Stop areas · not live vehicles</span>
-            </div>
-            <div class="map-wrap">
-              <div id="map" role="region" aria-label="Map of approximate CCNY shuttle pickup areas">
-                <div class="map-placeholder">Map loading…</div>
-              </div>
-              <div class="map-overlay"><span class="legend-dot stop-dot"></span> Stop areas <span class="legend-dot campus-dot"></span> Campus</div>
-            </div>
-            <div class="map-bottom"><span>Stop pins are approximate. Confirm pickup locations using posted signs.</span><a href="https://www.ccny.cuny.edu/about/gettingthere" target="_blank" rel="noopener noreferrer">CCNY shuttle details ↗</a></div>
-          </article>
-        </section>
-        <section id="stops" class="stops-section">
-          <div class="section-title-row">
-            <div><div class="section-overline">KNOW BEFORE YOU GO</div><h2>Shuttle stops</h2><p class="muted">Officially listed stops. No fabricated ETAs, no misleading countdowns.</p></div>
-            <span id="refreshed-label" class="updated-label">GPS: checking…</span>
-          </div>
-          <div class="stop-grid">
-            <article class="stop-card"><div class="stop-card-top"><span class="number-token">125</span><span class="stop-eta" data-eta>ETA unavailable</span></div><h3>125th Street</h3><p>Post Office · between St. Nicholas &amp; Morningside Ave</p><div class="stop-divider"></div><div class="stop-meta"><span>Subway connection</span><span class="train-cluster"><b>A</b><b>B</b><b>C</b><b>D</b></span></div><a class="stop-action" href="https://www.google.com/maps/search/?api=1&amp;query=West+125th+Street+St+Nicholas+Ave+New+York" target="_blank" rel="noopener noreferrer">View stop area <span aria-hidden="true">↗</span></a></article>
-            <article class="stop-card"><div class="stop-card-top"><span class="number-token">145</span><span class="stop-eta" data-eta>ETA unavailable</span></div><h3>145th Street</h3><p>Dunkin' · between St. Nicholas &amp; Edgecombe Ave</p><div class="stop-divider"></div><div class="stop-meta"><span>Subway connection</span><span class="train-cluster"><b>A</b><b>B</b><b>C</b><b>D</b></span></div><a class="stop-action" href="https://www.google.com/maps/search/?api=1&amp;query=West+145th+Street+St+Nicholas+Ave+New+York" target="_blank" rel="noopener noreferrer">View stop area <span aria-hidden="true">↗</span></a></article>
-            <article class="stop-card"><div class="stop-card-top"><span class="number-token campus-token">CCNY</span><span class="stop-eta" data-eta>ETA unavailable</span></div><h3>Marshak Building</h3><p>Convent Avenue · main campus shuttle connection</p><div class="stop-divider"></div><div class="stop-meta"><span>Area</span><span class="meta-value">North campus</span></div><a class="stop-action" href="https://www.google.com/maps/search/?api=1&amp;query=Marshak+Science+Building+CCNY" target="_blank" rel="noopener noreferrer">View stop area <span aria-hidden="true">↗</span></a></article>
-            <article class="stop-card"><div class="stop-card-top"><span class="number-token campus-token">CCNY</span><span class="stop-eta" data-eta>ETA unavailable</span></div><h3>North Academic Center</h3><p>Convent Avenue · NAC campus stop</p><div class="stop-divider"></div><div class="stop-meta"><span>Area</span><span class="meta-value">Main campus</span></div><a class="stop-action" href="https://www.google.com/maps/search/?api=1&amp;query=North+Academic+Center+CCNY" target="_blank" rel="noopener noreferrer">View stop area <span aria-hidden="true">↗</span></a></article>
-          </div>
-          <p class="on-request"><span class="info-glyph">i</span> <strong>Additional stop:</strong> West 135th Street &amp; Convent Avenue — northbound, upon request. See official CCNY information for details.</p>
-        </section>
-        <section class="info-row" id="how-it-works">
-          <article class="info-panel schedule-panel">
-            <div class="section-overline">OFFICIAL SCHEDULE</div>
-            <h2>When does it run?</h2>
-            <div class="hours-highlight"><span class="clock-circle">◷</span><strong>6:30 AM – 10:00 PM</strong></div>
-            <p>Monday through Friday, generally on days classes are scheduled. Service may not operate during holidays, intersessions, or closures.</p>
-            <a href="https://www.ccny.cuny.edu/about/gettingthere" target="_blank" rel="noopener noreferrer">Check official service information ↗</a>
-          </article>
-          <article class="info-panel next-panel">
-            <div class="section-overline">WHAT WE'RE BUILDING</div>
-            <h2>Better than a bus dot.</h2>
-            <div class="feature-list"><div><span>01</span><p><strong>Reliable arrivals</strong><small>GPS-aware estimates with uncertainty ranges.</small></p></div><div><span>02</span><p><strong>Best station to exit</strong><small>Compare the whole subway-to-campus trip.</small></p></div><div><span>03</span><p><strong>Outage-aware tracking</strong><small>Know what's confirmed and what's only estimated.</small></p></div></div>
-          </article>
-        </section>
-        <footer class="footer"><div><strong>CCNY Smart Shuttle</strong><span>Independent student project · Not affiliated with CCNY or Samsara</span></div><div><a href="https://github.com/cmahmud/ccny-shuttle" target="_blank" rel="noopener noreferrer">Source code ↗</a><a href="https://www.ccny.cuny.edu/about/gettingthere" target="_blank" rel="noopener noreferrer">Official CCNY information ↗</a></div></footer>
+    </div>
+  </header>
+
+  <main class="shell dashboard" id="tracker">
+    <section class="tracker-top" aria-label="Shuttle service status">
+      <div class="tracker-heading"><h1>Shuttle tracker</h1><span class="tracker-sub">City College of New York</span></div>
+      <div class="live-line" id="live-line" aria-live="polite">
+        <span class="live-signal" aria-hidden="true"></span>
+        <span id="live-message">Connecting to GPS…</span>
+        <a href="https://cloud.samsara.com/o/4010168/fleet/viewer/FJMjrX1YlqCqlGxIKkXY" target="_blank" rel="noopener noreferrer">Official live map ↗</a>
       </div>
-    </main>
-  </div>
-  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script defer src="/app.js"></script>
+    </section>
+
+    <div class="stop-tabs" id="stop-tabs" role="tablist" aria-label="Select CCNY shuttle stop">
+      <button class="stop-tab is-selected" type="button" role="tab" aria-selected="true" aria-controls="stop-panel" id="tab-125" data-stop="125"><span class="tab-label">125th St</span><small>Post Office</small></button>
+      <button class="stop-tab" type="button" role="tab" aria-selected="false" aria-controls="stop-panel" id="tab-135" data-stop="135"><span class="tab-label">135th St</span><small>On request</small></button>
+      <button class="stop-tab" type="button" role="tab" aria-selected="false" aria-controls="stop-panel" id="tab-marshak" data-stop="marshak"><span class="tab-label">Marshak</span><small>Campus</small></button>
+      <button class="stop-tab" type="button" role="tab" aria-selected="false" aria-controls="stop-panel" id="tab-145" data-stop="145"><span class="tab-label">145th St</span><small>Dunkin'</small></button>
+      <button class="stop-tab" type="button" role="tab" aria-selected="false" aria-controls="stop-panel" id="tab-nac" data-stop="nac"><span class="tab-label">NAC</span><small>Campus</small></button>
+    </div>
+
+    <section class="main-grid" aria-label="Selected stop and map">
+      <article class="map-card" aria-label="Campus shuttle stop map">
+        <div class="card-bar">
+          <div class="card-bar-title"><span class="map-indicator" aria-hidden="true"></span><strong>Stop map</strong><span class="meta">Approximate pickup areas</span></div>
+          <button type="button" class="icon-button" id="map-reset" title="Show all stops" aria-label="Show all mapped stops">↗ <span class="reset-text">All stops</span></button>
+        </div>
+        <div class="map-wrapper"><div id="map" role="region" aria-label="Interactive map of CCNY shuttle stop areas"><div class="map-placeholder">Loading stop map…</div></div>
+          <div class="map-note"><span class="pin-legend"></span>Stop area <span class="pin-legend campus"></span>Campus <span class="pin-legend vehicle"></span>Verified bus</div>
+        </div>
+        <div class="map-bottom"><span id="map-update">No confirmed GPS positions</span><span class="map-mapnote">Pins are approximate · not exact boarding spots</span></div>
+      </article>
+
+      <div class="right-stack">
+        <article class="stop-card" id="stop-panel" role="tabpanel" aria-labelledby="tab-125" tabindex="0">
+          <div class="stop-card-header">
+            <div><span class="eyebrow">SELECTED STOP</span><h2 id="stop-name">125th Street</h2></div>
+            <span class="eta-badge" id="eta-status">ETA unavailable</span>
+          </div>
+          <p class="stop-location" id="stop-location">Post Office · between St. Nicholas &amp; Morningside Ave</p>
+          <div class="eta-hero">
+            <div><span class="eta-label">Next shuttle</span><strong id="eta-value">—</strong></div>
+            <div class="eta-description" id="eta-description">Waiting for verified GPS data</div>
+          </div>
+          <div class="vehicle-list" id="vehicle-list" aria-live="polite"><div class="no-buses">No confirmed arrivals yet.</div></div>
+          <div class="stop-actions">
+            <a id="stop-directions" class="text-action" href="https://www.google.com/maps/search/?api=1&amp;query=Post+Office+West+125th+Street+Manhattan" target="_blank" rel="noopener noreferrer">Find pickup area ↗</a>
+            <span class="stop-warning" id="stop-warning">Use CCNY signs to confirm the stop.</span>
+          </div>
+        </article>
+
+        <article class="trip-card" aria-label="Walking directions">
+          <div class="trip-top"><strong>Going to campus?</strong><span class="trip-tag">WALKING ROUTES</span></div>
+          <label for="destination-select" class="sr-only">Campus destination</label>
+          <select id="destination-select">
+            <option value="nac">North Academic Center (NAC)</option>
+            <option value="marshak">Marshak Science Building</option>
+            <option value="shepard">Shepard Hall</option>
+            <option value="steinman">Steinman Hall · Engineering</option>
+            <option value="spitzer">Spitzer Hall · Architecture</option>
+          </select>
+          <div class="trip-links">
+            <a id="walk-selected" class="trip-link primary" href="#" target="_blank" rel="noopener noreferrer">Walk from selected stop <span aria-hidden="true">↗</span></a>
+            <a id="walk-137" class="trip-link alt" href="#" target="_blank" rel="noopener noreferrer">From 137th St (1) <span aria-hidden="true">↗</span></a>
+          </div>
+          <p class="trip-hint" id="trip-hint">Fastest-route recommendations are unavailable without live data.</p>
+        </article>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <div class="footer-left"><span>Mon–Fri · 6:30 AM–10 PM*</span><span class="footer-separator">·</span><span>Independent student project</span></div>
+      <div class="footer-right">
+        <a href="https://www.ccny.cuny.edu/about/gettingthere" target="_blank" rel="noopener noreferrer">Service details ↗</a>
+        <a href="https://github.com/cmahmud/ccny-shuttle" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
+      </div>
+    </footer>
+    <p class="service-footnote">*During CCNY class days. Times and stops may change. No GPS-based arrival predictions are currently offered.</p>
+  </main>
 </body>
 </html>
