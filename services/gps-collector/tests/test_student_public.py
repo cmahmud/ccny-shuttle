@@ -62,11 +62,30 @@ class PublicRelayTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"stale"):
             parse_public_feed(payload(NOW-timedelta(minutes=3)),NOW)
 
-    def test_reject_stale_upstream_poll(self):
+    def test_stale_upstream_poll_is_transport_heartbeat_not_live_gps(self):
         p=payload()
         p["live"]["lastSuccessfulPoll"]=ms(NOW-timedelta(minutes=3))
-        with self.assertRaisesRegex(ValueError,"polling"):
-            parse_public_feed(p,NOW)
+        snapshot=parse_public_feed(p,NOW)
+        self.assertEqual(snapshot.source_state,"stale")
+        self.assertEqual(snapshot.observations,())
+        with tempfile.TemporaryDirectory() as tmp:
+            store=ObservationStore(str(Path(tmp)/"gps.sqlite3"))
+            try:
+                worker=PublicBrowserRelay(store,"/fake/path")
+                self.assertEqual(worker.accept_payload(p,NOW),0)
+                self.assertEqual(store.count_observations(),0)
+                result=get_status(store,NOW)
+                self.assertEqual(result["transportState"],"healthy")
+                self.assertEqual(result["sourceState"],"no_data")
+            finally:store.close()
+
+    def test_expired_upstream_poll_not_promoted_to_live(self):
+        later = NOW + timedelta(minutes=4)
+        p = payload(when=later)
+        p["live"]["lastSuccessfulPoll"] = ms(NOW)
+        snapshot = parse_public_feed(p, later)
+        self.assertEqual(snapshot.source_state, "stale")
+        self.assertEqual(snapshot.observations, ())
 
     def test_reject_epoch_seconds_and_future(self):
         p=payload()
