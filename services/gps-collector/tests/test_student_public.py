@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from ccny_gps.student_public import parse_public_feed, in_service_window
-from ccny_gps.student_public_browser import PublicBrowserRelay
+from ccny_gps.student_public_browser import PublicBrowserRelay, feed_silence_seconds
 from ccny_gps.models import Observation
 from ccny_gps.storage import ObservationStore
 from ccny_gps.status import get_status
@@ -39,6 +39,19 @@ def payload(when=NOW, state="live", vehicles=None):
 
 
 class PublicRelayTests(unittest.TestCase):
+    def test_new_browser_session_does_not_immediately_timeout_on_old_response(self):
+        session = NOW
+        old = NOW - timedelta(hours=2)
+        self.assertEqual(feed_silence_seconds(session, old, NOW + timedelta(seconds=2)), 2)
+        self.assertEqual(feed_silence_seconds(session, old, NOW + timedelta(seconds=15)), 15)
+        self.assertGreater(feed_silence_seconds(session, old, NOW + timedelta(seconds=46)), 45)
+
+    def test_successful_feed_in_current_session_resets_watchdog(self):
+        session = NOW
+        good = NOW + timedelta(seconds=30)
+        self.assertEqual(feed_silence_seconds(session, good, NOW + timedelta(seconds=40)), 10)
+        self.assertGreater(feed_silence_seconds(session, good, NOW + timedelta(seconds=77)), 45)
+
     def test_sample_is_third_party_not_official(self):
         snap=parse_public_feed(payload(),NOW)
         self.assertEqual(len(snap.observations),2)
