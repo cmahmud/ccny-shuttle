@@ -55,8 +55,13 @@ def parse_public_feed(payload: object, received_at: datetime) -> PublicSnapshot:
     poll_age = (received_at - polled).total_seconds()
     if not -20 <= age <= MAX_FEED_AGE_SECONDS:
         raise ValueError("Student public feed response is stale or future-dated")
-    if not -20 <= poll_age <= 120:
-        raise ValueError("Upstream GPS polling status is stale or future-dated")
+    if poll_age < -20:
+        raise ValueError("Upstream GPS polling timestamp is future-dated")
+    # An old upstream GPS poll is not an HTTP transport failure. The public
+    # page may remain reachable while its GPS supplier is offline. Preserve
+    # the browser heartbeat with zero observations so this does not trigger
+    # repeated browser restarts or fabricate current bus positions.
+    upstream_current = poll_age <= 120
     state = live.get("sourceState")
     if not isinstance(state, str) or state not in (
         "live", "delayed", "stale", "no_data", "unconfigured", "offline"
@@ -106,8 +111,10 @@ def parse_public_feed(payload: object, received_at: datetime) -> PublicSnapshot:
 
     # Do not promote an upstream outage to 'live'. Previously recorded fixes
     # stay in history but will age out of the live status API.
-    if state != "live":
+    if state != "live" or not upstream_current:
         observations.clear()
+    if state == "live" and not upstream_current:
+        state = "stale"
     return PublicSnapshot(
         tuple(observations), generated, polled, state, rejected
     )
