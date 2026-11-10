@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { STOPS, DESTINATIONS, R137, directionsUrl, observedAgeSeconds, validVehicle, evaluateFeed, outsideListedHours, shortBusId, ago } from "../compact-core-v5.js";
+import { STOPS, DESTINATIONS, R137, directionsUrl, observedAgeSeconds, validVehicle, evaluateFeed, outsideListedHours, knownFleetFromPayload, shortBusId, ago } from "../compact-core-v6.js";
 const NOW = Date.parse("2026-11-09T18:40:00Z");
 const bus = {
   vehicleId: "89",
@@ -151,4 +151,33 @@ test("genuinely fresh GPS still appears live after listed closing time", () => {
     {...bus,observedAt:"2026-11-10T03:16:55Z"}
   ]};
   assert.equal(evaluateFeed(data,now).state,"live");
+});
+
+test("previously seen buses remain discoverable when all tracking is offline", () => {
+  const now = Date.parse("2026-11-10T07:47:00Z");
+  const snapshot = {
+    source:"student_public", generatedAt:"2026-11-10T07:46:59Z",
+    sourceState:"stale", transportState:"offline",
+    vehicles:[
+      {...bus, vehicleId:"281475002677140",locationKind:"third_party_observed",
+        observedAt:"2026-11-10T01:05:38Z",freshness:"stale"},
+      {...bus, vehicleId:"281475002677146",locationKind:"third_party_observed",
+        observedAt:"2026-11-10T01:09:33Z",freshness:"stale"}
+    ]
+  };
+  const fleet = knownFleetFromPayload(snapshot,now);
+  assert.equal(fleet.length,2);
+  assert.equal(fleet[0].vehicleId,"281475002677146");
+  assert.ok(fleet.every((v) => v.ageSeconds > 6*3600));
+  assert.equal(evaluateFeed(snapshot,now).vehicles.length,0);
+});
+
+test("historical fleet rejects unknown provenance, expired or invalid fixes", () => {
+  const report={...bus,locationKind:"third_party_observed"};
+  const snapshot={...live,source:"student_public",vehicles:[report]};
+  assert.equal(knownFleetFromPayload(snapshot,NOW).length,1);
+  assert.deepEqual(knownFleetFromPayload({...snapshot,source:"unknown"},NOW),[]);
+  assert.deepEqual(knownFleetFromPayload({...snapshot,vehicles:[{...report,latitude:99}]},NOW),[]);
+  assert.deepEqual(knownFleetFromPayload({...snapshot,vehicles:[{...report,observedAt:"2026-10-01T00:00:00Z"}]},NOW),[]);
+  assert.equal(knownFleetFromPayload({...snapshot,vehicles:[report,report]},NOW).length,1);
 });
