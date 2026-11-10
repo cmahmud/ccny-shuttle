@@ -26,10 +26,21 @@ def _source_status(store: ObservationStore, source: str, now: datetime) -> dict:
         else "offline"
     )
     observations = store.latest_observations(source)
+    details = store.latest_vehicle_context(source) if source == "student_public" else {}
     vehicles = []
     for obs in observations:
         age = round(obs.age_seconds(now), 1)
+        reported = details.get(obs.vehicle_id)
+        # A status is an observation at a specific GPS fix, not a persistent
+        # truth about this vehicle. Only expose it when it matches our accepted
+        # latest GPS event; downstream UI must still respect GPS freshness.
+        if reported and reported["reportedObservedAt"] != obs.observed_at.isoformat():
+            reported = None
         vehicles.append({
+            "busName": reported["busName"] if reported else None,
+            "reportedDirection": reported["reportedDirection"] if reported else None,
+            "reportedStatus": reported["reportedStatus"] if reported else None,
+            "reportedNextStopId": reported["reportedNextStopId"] if reported else None,
             "vehicleId": obs.vehicle_id,
             "latitude": obs.latitude,
             "longitude": obs.longitude,
