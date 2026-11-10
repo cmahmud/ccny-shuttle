@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 const read = (name) => readFileSync(new URL("../" + name, import.meta.url), "utf8");
 const html = read("index.html");
-const css = read("compact-v5.css");
-const js = read("compact-v6.js");
+const css = read("compact-v6.css");
+const js = read("compact-v7.js");
 const worker = read("service-worker.js");
 
 test("single compact tracker has no large hero or multi-page navigation", () => {
@@ -38,11 +38,11 @@ test("page has one map and compact responsive mobile layout", () => {
 });
 
 test("HTML references deployed versioned assets", () => {
-  assert.match(html, /\/compact-v5\.css/);
-  assert.match(html, /\/compact-v6\.js/);
-  assert.match(js, /\.\/compact-core-v6\.js/);
-  assert.match(html, /\/service-worker\.js|\/compact-v6\.js/);
-  for (const file of ["compact-v5.css","compact-v6.js","compact-core-v6.js"]) {
+  assert.match(html, /\/compact-v6\.css/);
+  assert.match(html, /\/compact-v7\.js/);
+  assert.match(js, /\.\/compact-core-v7\.js/);
+  assert.match(html, /\/service-worker\.js|\/compact-v7\.js/);
+  for (const file of ["compact-v6.css","compact-v7.js","compact-core-v7.js"]) {
     assert.ok(worker.includes("/" + file),file);
   }
 });
@@ -64,7 +64,7 @@ test("no guesses about ETAs or fake bus positions", () => {
 
 test("offline caching never stores current GPS", () => {
   assert.match(worker, /url\.pathname\.startsWith\("\/api\/"\)/);
-  assert.match(worker, /ccny-smart-shuttle-compact-v6/);
+  assert.match(worker, /ccny-smart-shuttle-compact-v7/);
   assert.doesNotMatch(worker,/APP_SHELL[^;]*\/api\/v1\/vehicles/s);
 });
 
@@ -76,8 +76,8 @@ test("documented official tracker, service hours, and directions present", () =>
 });
 
 test("active module dependencies use JS served with the correct MIME type", () => {
-  assert.match(html, /\/compact-v6\.js/);
-  assert.match(js, /\.\/compact-core-v6\.js/);
+  assert.match(html, /\/compact-v7\.js/);
+  assert.match(js, /\.\/compact-core-v7\.js/);
   assert.doesNotMatch(js, /from \"[^\"]+\.mjs\"/);
   assert.doesNotMatch(worker, /\/compact-core\.mjs/);
 });
@@ -89,4 +89,15 @@ test("previously seen shuttles are discoverable but do not get live ETAs", () =>
   assert.match(js,/Not reporting ≠ confirmed inactive/);
   assert.match(js,/historical GPS pins shown · NOT current locations/);
   assert.match(js,/knownFleetFromPayload/);
+});
+
+
+test("one-tap bus navigation and accessible mobile map shortcuts exist", () => {
+  assert.match(html, /id="map-buses"/);
+  assert.match(html, /id="map-card"/);
+  assert.match(js, /focusBusOnMap/);
+  assert.match(js, /focusAllReportingBuses/);
+  assert.match(js, /row\.addEventListener\("click"/);
+  assert.match(css, /\.vehicle-pin\.reporting-bus/);
+  assert.match(css, /\.card-bar-title \.meta \{display:none\}/);
 });
