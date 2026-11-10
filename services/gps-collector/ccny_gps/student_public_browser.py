@@ -31,6 +31,24 @@ def surface_distance_m(a, b) -> float:
     return 6_371_000 * hypot(dlat, dlon * cos(mean_lat))
 
 
+def feed_silence_seconds(
+    session_started_at: datetime,
+    last_good_response: datetime | None,
+    now: datetime,
+) -> float:
+    """Give every new browser session time to receive its first public feed.
+
+    An earlier session's successful response must never cause the next
+    session to time out before its first 7-second frontend poll.
+    """
+    reference = (
+        last_good_response
+        if last_good_response and last_good_response > session_started_at
+        else session_started_at
+    )
+    return max(0.0, (now - reference).total_seconds())
+
+
 class PublicBrowserRelay:
     def __init__(self, store: ObservationStore, browser_path: str):
         self.store = store
@@ -144,10 +162,11 @@ class PublicBrowserRelay:
                             raise PermissionError("Public GPS feed denied access")
                         if once and self.valid_responses > successes_before:
                             return True
-                        if not once and self.last_good_response:
-                            age = (datetime.now(timezone.utc)-self.last_good_response).total_seconds()
-                            if age > 45:
-                                raise TimeoutError("Public feed ceased updating")
+                        if not once and feed_silence_seconds(
+                            session_start, self.last_good_response,
+                            datetime.now(timezone.utc),
+                        ) > 45:
+                            raise TimeoutError("Public feed ceased updating")
                         if not once and not in_service_window(datetime.now(timezone.utc)):
                             return True
                         await asyncio.sleep(1)
