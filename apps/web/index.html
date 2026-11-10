@@ -10,10 +10,10 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin>
-  <link rel="stylesheet" href="/compact-v5.css">
+  <link rel="stylesheet" href="/compact-v6.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script type="module" src="/compact-v6.js"></script>
+  <script type="module" src="/compact-v7.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#tracker">Skip to tracker</a>
@@ -52,12 +52,13 @@
     </div>
 
     <section class="main-grid" aria-label="Selected stop and map">
-      <article class="map-card" aria-label="Campus shuttle stop map">
+      <article class="map-card" id="map-card" aria-label="Campus shuttle stop map">
         <div class="card-bar">
           <div class="card-bar-title"><span class="map-indicator" aria-hidden="true"></span><strong>Stop map</strong><span class="meta">Approximate pickup areas</span></div>
           <div class="map-actions">
-            <button type="button" class="icon-button map-history-button" id="map-history" aria-pressed="false" disabled title="Show historical bus positions (not live)" aria-label="Toggle last-known historical shuttle locations">Last seen (<span id="map-history-count">0</span>)</button>
-            <button type="button" class="icon-button" id="map-reset" title="Show all stops" aria-label="Show all mapped stops">↗ <span class="reset-text">All stops</span></button>
+            <button type="button" class="icon-button map-buses-button" id="map-buses" disabled title="Show reported buses on map" aria-label="Show currently reporting buses on map">Buses <span id="map-buses-count">0</span></button>
+            <button type="button" class="icon-button map-history-button" id="map-history" aria-pressed="false" disabled title="Show historical bus positions (not live)" aria-label="Toggle last-known historical shuttle locations">Last <span id="map-history-count">0</span></button>
+            <button type="button" class="icon-button" id="map-reset" title="Show all stops" aria-label="Show all mapped stops">↗ <span class="reset-text">All</span></button>
           </div>
         </div>
         <div class="map-wrapper"><div id="map" role="region" aria-label="Interactive map of CCNY shuttle stop areas"><div class="map-placeholder">Loading stop map…</div></div>
