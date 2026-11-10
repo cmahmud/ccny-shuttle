@@ -30,3 +30,7 @@ jobs:
         env:
           SHUTTLE_SITE_URL: http://127.0.0.1:9000/
         run: python apps/web/tests/browser_smoke.py
+      - name: Verify bus shortcuts, geometry, and popup on phone widths
+        env:
+          SHUTTLE_SITE_URL: http://127.0.0.1:9000/
+        run: python apps/web/tests/browser_mobile_visibility.py
