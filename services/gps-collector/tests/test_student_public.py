@@ -52,6 +52,40 @@ class PublicRelayTests(unittest.TestCase):
         self.assertEqual(feed_silence_seconds(session, good, NOW + timedelta(seconds=40)), 10)
         self.assertGreater(feed_silence_seconds(session, good, NOW + timedelta(seconds=77)), 45)
 
+    def test_public_bus_metadata_is_source_attributed_and_stored_atomically(self):
+        sample=payload()
+        sample["live"]["vehicles"][0].update({
+            "name":"88","direction":"NB","status":"standing",
+            "nextStopId":"145",
+        })
+        sample["live"]["vehicles"][1].update({
+            "name":"<untrusted>","direction":"untrusted","status":"untrusted",
+            "nextStopId":"untrusted",
+        })
+        snapshot=parse_public_feed(sample,NOW)
+        self.assertEqual(snapshot.vehicle_details[0][1:5],("88","NB","standing","145"))
+        self.assertEqual(snapshot.vehicle_details[1][1:5],(None,None,None,None))
+        with tempfile.TemporaryDirectory() as tmp:
+            store=ObservationStore(str(Path(tmp)/"gps.sqlite3"))
+            try:
+                worker=PublicBrowserRelay(store,"/fake/browser")
+                self.assertEqual(worker.accept_payload(sample,NOW),2)
+                data=get_status(store,NOW)
+                self.assertEqual(data["source"],"student_public")
+                by_id={v["vehicleId"]:v for v in data["vehicles"]}
+                self.assertEqual(by_id["test-89"]["busName"],"88")
+                self.assertEqual(by_id["test-89"]["reportedDirection"],"NB")
+                self.assertEqual(by_id["test-89"]["reportedStatus"],"standing")
+                self.assertEqual(by_id["test-89"]["reportedNextStopId"],"145")
+                self.assertIsNone(by_id["test-88"]["busName"])
+                # Rejected older observation must never replace newer metadata.
+                older=payload(when=NOW-timedelta(seconds=3))
+                older["live"]["vehicles"][0]["name"]="99"
+                self.assertEqual(worker.accept_payload(older,NOW),0)
+                self.assertEqual(store.latest_vehicle_context("student_public")["test-89"]["busName"],"88")
+            finally:
+                store.close()
+
     def test_sample_is_third_party_not_official(self):
         snap=parse_public_feed(payload(),NOW)
         self.assertEqual(len(snap.observations),2)
