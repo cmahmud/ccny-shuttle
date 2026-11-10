@@ -191,6 +191,30 @@ class ObservationStore:
             for vid, name, direction, reported_status, next_stop, observed in rows
         }
 
+    def recent_observations(
+        self, source: str, vehicle_id: str, limit: int = 6
+    ) -> list[Observation]:
+        """Recent raw fixes for display-only stabilization; never mutate GPS."""
+        if not 1 <= limit <= 12:
+            raise ValueError("Invalid recent GPS limit")
+        rows = self.conn.execute(
+            """SELECT source,vehicle_id,latitude,longitude,observed_at,received_at,
+                      heading_degrees,speed_mph
+               FROM observations
+               WHERE source=? AND vehicle_id=?
+               ORDER BY observed_at DESC,id DESC LIMIT ?""",
+            (source,vehicle_id,limit),
+        ).fetchall()
+        return [
+            Observation(
+                source=r[0],vehicle_id=r[1],latitude=r[2],longitude=r[3],
+                observed_at=datetime.fromisoformat(r[4]),
+                received_at=datetime.fromisoformat(r[5]),
+                heading_degrees=r[6],speed_mph=r[7],
+            )
+            for r in rows
+        ]
+
     def count_observations(self) -> int:
         return self.conn.execute("SELECT COUNT(*) FROM observations").fetchone()[0]
 
