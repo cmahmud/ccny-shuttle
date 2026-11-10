@@ -4,7 +4,7 @@ import {readFileSync} from "node:fs";
 const read = (name) => readFileSync(new URL("../" + name, import.meta.url), "utf8");
 const html = read("index.html");
 const css = read("compact-v7.css");
-const js = read("compact-v9.js");
+const js = read("compact-v10.js");
 const worker = read("service-worker.js");
 
 test("single compact tracker has no large hero or multi-page navigation", () => {
@@ -39,10 +39,10 @@ test("page has one map and compact responsive mobile layout", () => {
 
 test("HTML references deployed versioned assets", () => {
   assert.match(html, /\/compact-v7\.css/);
-  assert.match(html, /\/compact-v9\.js/);
+  assert.match(html, /\/compact-v10\.js/);
   assert.match(js, /\.\/compact-core-v9\.js/);
-  assert.match(html, /\/service-worker\.js|\/compact-v9\.js/);
-  for (const file of ["compact-v7.css","compact-v9.js","compact-core-v9.js"]) {
+  assert.match(html, /\/service-worker\.js|\/compact-v10\.js/);
+  for (const file of ["compact-v7.css","compact-v10.js","compact-core-v9.js"]) {
     assert.ok(worker.includes("/" + file),file);
   }
 });
@@ -64,7 +64,7 @@ test("no guesses about ETAs or fake bus positions", () => {
 
 test("offline caching never stores current GPS", () => {
   assert.match(worker, /url\.pathname\.startsWith\("\/api\/"\)/);
-  assert.match(worker, /ccny-smart-shuttle-compact-v9/);
+  assert.match(worker, /ccny-smart-shuttle-compact-v10/);
   assert.doesNotMatch(worker,/APP_SHELL[^;]*\/api\/v1\/vehicles/s);
 });
 
@@ -76,7 +76,7 @@ test("documented official tracker, service hours, and directions present", () =>
 });
 
 test("active module dependencies use JS served with the correct MIME type", () => {
-  assert.match(html, /\/compact-v9\.js/);
+  assert.match(html, /\/compact-v10\.js/);
   assert.match(js, /\.\/compact-core-v9\.js/);
   assert.doesNotMatch(js, /from \"[^\"]+\.mjs\"/);
   assert.doesNotMatch(worker, /\/compact-core\.mjs/);
@@ -100,4 +100,10 @@ test("one-tap bus navigation and accessible mobile map shortcuts exist", () => {
   assert.match(js, /row\.addEventListener\("click"/);
   assert.match(css, /\.vehicle-pin\.reporting-bus/);
   assert.match(css, /\.card-bar-title \.meta \{display:none\}/);
+});
+
+test("visible tab polls local GPS status faster without touching upstream directly", () => {
+  assert.match(js,/const POLL_MS = 5000;/);
+  assert.match(js,/if \(!document.hidden\) poll\(\)/);
+  assert.match(js,/fetch\("\/api\/v1\/vehicles"/);
 });
