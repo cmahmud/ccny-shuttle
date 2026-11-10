@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { STOPS, DESTINATIONS, R137, directionsUrl, observedAgeSeconds, validVehicle, evaluateFeed, outsideListedHours, knownFleetFromPayload, shortBusId, ago } from "../compact-core-v7.js";
+import { STOPS, DESTINATIONS, R137, directionsUrl, observedAgeSeconds, validVehicle, evaluateFeed, outsideListedHours, knownFleetFromPayload, shortBusId, busDisplayName, reportedBusContext, ago } from "../compact-core-v8.js";
 const NOW = Date.parse("2026-11-09T18:40:00Z");
 const bus = {
   vehicleId: "89",
@@ -180,4 +180,14 @@ test("historical fleet rejects unknown provenance, expired or invalid fixes", ()
   assert.deepEqual(knownFleetFromPayload({...snapshot,vehicles:[{...report,latitude:99}]},NOW),[]);
   assert.deepEqual(knownFleetFromPayload({...snapshot,vehicles:[{...report,observedAt:"2026-10-01T00:00:00Z"}]},NOW),[]);
   assert.equal(knownFleetFromPayload({...snapshot,vehicles:[report,report]},NOW).length,1);
+});
+
+test("source-reported bus number, direction and standing status display only when fresh", () => {
+  const b = {...bus, busName:"88", reportedDirection:"NB", reportedStatus:"standing",
+    reportedNextStopId:"145"};
+  assert.equal(busDisplayName(b),"Bus 88");
+  assert.equal(reportedBusContext(b,NOW),"Northbound · At stop · Next: 145th St");
+  assert.equal(reportedBusContext({...b,freshness:"stale"},NOW),"");
+  assert.equal(reportedBusContext({...b,observedAt:"2026-11-09T18:30:00Z"},NOW),"");
+  assert.equal(busDisplayName({...b,busName:"not a number"}),shortBusId(b.vehicleId));
 });
