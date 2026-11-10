@@ -19,12 +19,12 @@ Increasing browser polling cannot create observations that the Samsara device or
 
 - Status server reads recent positions from the existing SQLite DB and computes a derived field without writing extra coordinates.
 - Reactivity and collector cadence remain unchanged; the GPS status API stays on `127.0.0.1:8766`.
-- Public compact web uses `compact-v9.js`, `compact-core-v9.js`, and service-worker cache v9.
+- Public compact web uses `compact-v10.js` (poll interval reduced from 15 seconds to 5 seconds), `compact-core-v9.js` and service-worker cache v10. The five-second polling targets **our own localhost-backed API**, not the student's source or Samsara, and pauses when the tab is hidden. This reduces avoidable client display lag; it does not change upstream GPS sampling frequency.
 - OmniRoute stays separate on `127.0.0.1:23128`.
 
 ## Tests and future work
 
-- 64 GPS unit/integration tests and 40 frontend tests passed, including 6 synthetic edge cases for the location filter.
+- 64 GPS unit/integration tests and 41 frontend tests passed, including 6 synthetic edge cases for the location filter.
 - Production desktop and phone browser smoke passed; 320/375/390/430px phone widths passed their synthetic GPS navigation regression.
 - Next steps for **real geographic accuracy**: field-verify the road route and boarding points; map-match continuous traces to a campus shuttle route using a locally controlled algorithm; quantify raw versus map-matched geofence crossing error against independent observed bus arrivals; calibrate location uncertainty rather than claiming a precise accuracy radius.
 - For **truly independent and higher-frequency GPS**, CCNY must approve a physically separate bus-mounted GPS/mobile device feed with appropriate access, consent, and hardware mounting. The student browser relay remains derived from the same Samsara upstream.
