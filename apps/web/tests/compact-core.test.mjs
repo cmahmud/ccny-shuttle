@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { STOPS, DESTINATIONS, R137, directionsUrl, observedAgeSeconds, validVehicle, evaluateFeed, shortBusId, ago } from "../compact-core-v4.js";
+import { STOPS, DESTINATIONS, R137, directionsUrl, observedAgeSeconds, validVehicle, evaluateFeed, outsideListedHours, shortBusId, ago } from "../compact-core-v5.js";
 const NOW = Date.parse("2026-11-09T18:40:00Z");
 const bus = {
   vehicleId: "89",
@@ -123,4 +123,32 @@ test("last-known third-party vehicle remains labeled delayed then expires", () =
   assert.match(delayed.message,/not live/);
   const expired=evaluateFeed({...feed,vehicles:[{...report,observedAt:"2026-11-09T18:30:00Z"}]},NOW);
   assert.equal(expired.vehicles.length,0);
+});
+
+test("off hours are calculated in New York, not client timezone", () => {
+  assert.equal(outsideListedHours(Date.parse("2026-11-10T03:17:00Z")),true); // Mon 10:17 PM ET
+  assert.equal(outsideListedHours(Date.parse("2026-11-09T18:40:00Z")),false);
+  assert.equal(outsideListedHours(Date.parse("2026-11-09T11:20:00Z")),true); // Mon 6:20 AM
+  assert.equal(outsideListedHours(Date.parse("2026-11-09T11:30:00Z")),false);
+  assert.equal(outsideListedHours(Date.parse("2026-11-10T03:00:00Z")),true); // exactly 10 PM
+  assert.equal(outsideListedHours(Date.parse("2026-11-08T18:00:00Z")),true); // Sunday
+});
+
+test("afterhours stale GPS is unavailable, not misrepresented as a live bus", () => {
+  const now=Date.parse("2026-11-10T03:17:00Z");
+  const old={...bus,observedAt:"2026-11-10T01:09:33Z",freshness:"stale"};
+  const data={source:"student_public",generatedAt:"2026-11-10T03:16:59Z",
+    sourceState:"stale",transportState:"offline",vehicles:[{...old,locationKind:"third_party_observed"}]};
+  const result=evaluateFeed(data,now);
+  assert.equal(result.state,"afterhours");
+  assert.equal(result.vehicles.length,0);
+  assert.match(result.message,/last bus report 2h ago/);
+});
+
+test("genuinely fresh GPS still appears live after listed closing time", () => {
+  const now=Date.parse("2026-11-10T03:17:00Z");
+  const data={...live,generatedAt:"2026-11-10T03:16:59Z",vehicles:[
+    {...bus,observedAt:"2026-11-10T03:16:55Z"}
+  ]};
+  assert.equal(evaluateFeed(data,now).state,"live");
 });
