@@ -42,6 +42,17 @@ class ObservationStore:
                     source TEXT PRIMARY KEY,
                     vehicle_ids_hash TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS vehicle_context (
+                    source TEXT NOT NULL,
+                    vehicle_id TEXT NOT NULL,
+                    bus_name TEXT,
+                    direction TEXT,
+                    reported_status TEXT,
+                    next_stop_id TEXT,
+                    observed_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY(source, vehicle_id)
+                );
             """)
 
     def bind_vehicle_scope(self, source: str, vehicle_ids: frozenset[str]) -> None:
@@ -77,6 +88,7 @@ class ObservationStore:
     def commit_page(
         self, source: str, observations: tuple[Observation, ...], cursor: str,
         polled_at: datetime | None = None,
+        vehicle_details: tuple[tuple[str, str | None, str | None, str | None, str | None, datetime], ...] = (),
     ) -> int:
         """Persist events and cursor in the SAME transaction to avoid gaps."""
         if not cursor:
@@ -99,6 +111,25 @@ class ObservationStore:
                     ),
                 )
             after_events = self.conn.total_changes
+            for vehicle_id, bus_name, direction, reported_status, next_stop, source_time in vehicle_details:
+                if source_time.tzinfo is None:
+                    raise ValueError("Source vehicle status time must be timezone-aware")
+                self.conn.execute(
+                    """INSERT INTO vehicle_context
+                    (source,vehicle_id,bus_name,direction,reported_status,next_stop_id,observed_at,updated_at)
+                    VALUES(?,?,?,?,?,?,?,?)
+                    ON CONFLICT(source,vehicle_id) DO UPDATE SET
+                    bus_name=excluded.bus_name,
+                    direction=excluded.direction,
+                    reported_status=excluded.reported_status,
+                    next_stop_id=excluded.next_stop_id,
+                    observed_at=excluded.observed_at,
+                    updated_at=excluded.updated_at
+                    WHERE excluded.observed_at >= vehicle_context.observed_at""",
+                    (source,vehicle_id,bus_name,direction,reported_status,next_stop,
+                     source_time.astimezone(timezone.utc).isoformat(),
+                     polled_at.astimezone(timezone.utc).isoformat()),
+                )
             self.conn.execute(
                 """INSERT INTO cursors(source, end_cursor) VALUES (?, ?)
                 ON CONFLICT(source) DO UPDATE SET end_cursor = excluded.end_cursor""",
@@ -143,6 +174,22 @@ class ObservationStore:
             )
             for row in rows
         ]
+
+    def latest_vehicle_context(self, source: str) -> dict[str, dict]:
+        rows = self.conn.execute(
+            "SELECT vehicle_id,bus_name,direction,reported_status,next_stop_id,observed_at "
+            "FROM vehicle_context WHERE source=?", (source,)
+        ).fetchall()
+        return {
+            vid: {
+                "busName": name,
+                "reportedDirection": direction,
+                "reportedStatus": reported_status,
+                "reportedNextStopId": next_stop,
+                "reportedObservedAt": observed,
+            }
+            for vid, name, direction, reported_status, next_stop, observed in rows
+        }
 
     def count_observations(self) -> int:
         return self.conn.execute("SELECT COUNT(*) FROM observations").fetchone()[0]
