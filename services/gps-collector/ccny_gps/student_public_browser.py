@@ -82,8 +82,14 @@ class PublicBrowserRelay:
                     continue
             valid.append(obs)
         # Each snapshot updates transport separately from the underlying GPS event time.
+        accepted = {obs.vehicle_id: obs.observed_at for obs in valid}
+        details = tuple(
+            d for d in snapshot.vehicle_details
+            if d[0] in accepted and d[5] == accepted[d[0]]
+        )
         inserted = self.store.commit_page(
-            SOURCE, tuple(valid), f"public-feed:{milliseconds}", polled_at=now
+            SOURCE, tuple(valid), f"public-feed:{milliseconds}",
+            polled_at=now, vehicle_details=details,
         )
         for obs in valid:
             self._last_positions[obs.vehicle_id] = obs
