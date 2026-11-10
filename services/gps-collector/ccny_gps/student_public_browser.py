@@ -93,10 +93,10 @@ class PublicBrowserRelay:
         self.inserted_total += inserted
         if self.valid_responses == 1 or self.valid_responses % 15 == 0:
             LOG.info(
-                "Student public GPS feed healthy; vehicles=%d new_observations=%d "
-                "rejected=%d total=%d",
-                len(valid), inserted, snapshot.vehicles_rejected + movement_rejected,
-                self.inserted_total,
+                "Student public relay responsive; upstream_state=%s vehicles=%d "
+                "new_observations=%d rejected=%d total=%d",
+                snapshot.source_state, len(valid), inserted,
+                snapshot.vehicles_rejected + movement_rejected, self.inserted_total,
             )
         return inserted
 
