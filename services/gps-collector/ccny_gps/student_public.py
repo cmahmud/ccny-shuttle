@@ -28,6 +28,7 @@ MAX_VEHICLES = 25
 @dataclass(frozen=True)
 class PublicSnapshot:
     observations: tuple[Observation, ...]
+    vehicle_details: tuple[tuple[str, str | None, str | None, str | None, str | None, datetime], ...]
     feed_generated_at: datetime
     upstream_polled_at: datetime
     source_state: str
@@ -71,6 +72,7 @@ def parse_public_feed(payload: object, received_at: datetime) -> PublicSnapshot:
     if not isinstance(reported, list) or len(reported) > MAX_VEHICLES:
         raise ValueError("Malformed or oversized public vehicle list")
     observations = []
+    details = []
     rejected = 0
     used = set()
     for vehicle in reported:
@@ -105,6 +107,20 @@ def parse_public_feed(payload: object, received_at: datetime) -> PublicSnapshot:
                 speed_mph=None,
             )
             observations.append(obs)
+            # Keep only short, source-asserted bus numbers, and known stop/status
+            # enums. All are metadata, not evidence of active service or ETA.
+            raw_name = vehicle.get("name")
+            bus_name = raw_name.strip() if isinstance(raw_name, str) else ""
+            bus_name = bus_name if bus_name.isascii() and bus_name.isdigit() and 1 <= len(bus_name) <= 3 else None
+            direction = vehicle.get("direction") if vehicle.get("direction") in ("NB", "SB") else None
+            reported_status = vehicle.get("status") if vehicle.get("status") in (
+                "moving", "standing", "standing_at_stop", "stopped",
+                "inactive", "unknown"
+            ) else None
+            next_stop = vehicle.get("nextStopId") if vehicle.get("nextStopId") in (
+                "125", "135", "marshak", "145"
+            ) else None
+            details.append((vid, bus_name, direction, reported_status, next_stop, observed))
             used.add(vid)
         except (TypeError, ValueError, OverflowError, KeyError):
             rejected += 1
@@ -113,10 +129,11 @@ def parse_public_feed(payload: object, received_at: datetime) -> PublicSnapshot:
     # stay in history but will age out of the live status API.
     if state != "live" or not upstream_current:
         observations.clear()
+        details.clear()
     if state == "live" and not upstream_current:
         state = "stale"
     return PublicSnapshot(
-        tuple(observations), generated, polled, state, rejected
+        tuple(observations), tuple(details), generated, polled, state, rejected
     )
 
 
