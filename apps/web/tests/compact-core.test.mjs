@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { STOPS, DESTINATIONS, R137, directionsUrl, observedAgeSeconds, validVehicle, evaluateFeed, outsideListedHours, knownFleetFromPayload, shortBusId, busDisplayName, reportedBusContext, ago } from "../compact-core-v8.js";
+import { STOPS, DESTINATIONS, R137, directionsUrl, observedAgeSeconds, validVehicle, evaluateFeed, outsideListedHours, knownFleetFromPayload, shortBusId, busDisplayName, reportedBusContext, mapLocation, ago } from "../compact-core-v9.js";
 const NOW = Date.parse("2026-11-09T18:40:00Z");
 const bus = {
   vehicleId: "89",
@@ -190,4 +190,17 @@ test("source-reported bus number, direction and standing status display only whe
   assert.equal(reportedBusContext({...b,freshness:"stale"},NOW),"");
   assert.equal(reportedBusContext({...b,observedAt:"2026-11-09T18:30:00Z"},NOW),"");
   assert.equal(busDisplayName({...b,busName:"not a number"}),shortBusId(b.vehicleId));
+});
+
+test("stationary GPS visual stabilizer does not alter raw readings", () => {
+  const original = {...bus,reportedStatus:"standing",freshness:"fresh",
+    displayPosition:{latitude:40.82002,longitude:-73.95002,method:"stationary_median",sampleCount:3,displacementMeters:2}};
+  const pos=mapLocation(original,NOW);
+  assert.equal(pos.smoothed,true);
+  assert.equal(pos.latitude,40.82002);
+  assert.equal(original.latitude,bus.latitude);
+  assert.equal(mapLocation({...original,reportedStatus:"moving"},NOW).smoothed,false);
+  assert.equal(mapLocation({...original,freshness:"stale"},NOW).smoothed,false);
+  assert.equal(mapLocation({...original,displayPosition:{...original.displayPosition,latitude:40.825}},NOW).smoothed,false);
+  assert.equal(mapLocation({...original,displayPosition:{...original.displayPosition,sampleCount:1}},NOW).smoothed,false);
 });
