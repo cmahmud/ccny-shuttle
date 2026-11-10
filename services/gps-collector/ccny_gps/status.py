@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 
 from .models import Observation
 from .storage import ObservationStore
+from .location_filter import stationary_display_position
 
 SOURCES = ("samsara", "student_public")
 
@@ -36,7 +37,16 @@ def _source_status(store: ObservationStore, source: str, now: datetime) -> dict:
         # latest GPS event; downstream UI must still respect GPS freshness.
         if reported and reported["reportedObservedAt"] != obs.observed_at.isoformat():
             reported = None
+        stabilized = None
+        if reported and obs.freshness(now) == "fresh" and reported["reportedStatus"] in (
+            "standing", "standing_at_stop", "stopped"
+        ):
+            recent = store.recent_observations(source, obs.vehicle_id, limit=6)
+            stabilized = stationary_display_position(
+                obs, recent, reported["reportedStatus"], now
+            )
         vehicles.append({
+            "displayPosition": stabilized,
             "busName": reported["busName"] if reported else None,
             "reportedDirection": reported["reportedDirection"] if reported else None,
             "reportedStatus": reported["reportedStatus"] if reported else None,
