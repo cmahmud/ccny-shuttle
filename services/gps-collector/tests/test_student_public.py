@@ -77,6 +77,14 @@ class PublicRelayTests(unittest.TestCase):
                 self.assertEqual(by_id["test-89"]["reportedDirection"],"NB")
                 self.assertEqual(by_id["test-89"]["reportedStatus"],"standing")
                 self.assertEqual(by_id["test-89"]["reportedNextStopId"],"145")
+                # Historical direction/status belong to the original GPS
+                # sample, not a later status or inferred future stop.
+                ctx_rows=store.conn.execute(
+                    "SELECT vehicle_id,direction,reported_status,next_stop_id "
+                    "FROM vehicle_context_history ORDER BY vehicle_id"
+                ).fetchall()
+                self.assertEqual(len(ctx_rows),2)
+                self.assertIn(("test-89","NB","standing","145"),ctx_rows)
                 self.assertIsNone(by_id["test-88"]["busName"])
                 # Rejected older observation must never replace newer metadata.
                 older=payload(when=NOW-timedelta(seconds=3))
