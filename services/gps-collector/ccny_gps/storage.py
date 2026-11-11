@@ -42,6 +42,23 @@ class ObservationStore:
                     source TEXT PRIMARY KEY,
                     vehicle_ids_hash TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS forecast_comparisons (
+                    id INTEGER PRIMARY KEY,
+                    source TEXT NOT NULL,
+                    stop_id TEXT NOT NULL,
+                    vehicle_id TEXT NOT NULL,
+                    direction TEXT NOT NULL,
+                    forecast_generated_at TEXT NOT NULL,
+                    forecast_bucket INTEGER NOT NULL,
+                    arrival_at TEXT NOT NULL,
+                    earliest_at TEXT,
+                    latest_at TEXT,
+                    source_enabled INTEGER NOT NULL,
+                    ingested_at TEXT NOT NULL,
+                    UNIQUE(source,stop_id,vehicle_id,direction,forecast_bucket)
+                );
+                CREATE INDEX IF NOT EXISTS forecast_comparisons_by_time
+                    ON forecast_comparisons(forecast_generated_at,vehicle_id,stop_id);
                 CREATE TABLE IF NOT EXISTS vehicle_context (
                     source TEXT NOT NULL,
                     vehicle_id TEXT NOT NULL,
@@ -89,6 +106,7 @@ class ObservationStore:
         self, source: str, observations: tuple[Observation, ...], cursor: str,
         polled_at: datetime | None = None,
         vehicle_details: tuple[tuple[str, str | None, str | None, str | None, str | None, datetime], ...] = (),
+        benchmark_forecasts: tuple[tuple[str, str, str, datetime, datetime, datetime | None, datetime | None, bool], ...] = (),
     ) -> int:
         """Persist events and cursor in the SAME transaction to avoid gaps."""
         if not cursor:
@@ -130,6 +148,27 @@ class ObservationStore:
                      source_time.astimezone(timezone.utc).isoformat(),
                      polled_at.astimezone(timezone.utc).isoformat()),
                 )
+            # Cap storage to one source forecast per bus/stop/direction per
+            # 30-second interval. This is for offline evidence, not the API.
+            if source == "student_public":
+                for stop,vehicle_id,direction,predicted_at,arrival,early,late,enabled in benchmark_forecasts[:96]:
+                    if stop not in ("125","135","marshak","145") or direction not in ("NB","SB"):
+                        continue
+                    if any(t.tzinfo is None for t in (predicted_at,arrival)):
+                        continue
+                    bucket=int(predicted_at.timestamp())//30
+                    self.conn.execute(
+                        """INSERT OR IGNORE INTO forecast_comparisons
+                        (source,stop_id,vehicle_id,direction,forecast_generated_at,
+                        forecast_bucket,arrival_at,earliest_at,latest_at,source_enabled,ingested_at)
+                        VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+                        (source,stop,vehicle_id,direction,
+                         predicted_at.astimezone(timezone.utc).isoformat(),
+                         bucket,arrival.astimezone(timezone.utc).isoformat(),
+                         early.astimezone(timezone.utc).isoformat() if early else None,
+                         late.astimezone(timezone.utc).isoformat() if late else None,
+                         int(enabled),polled_at.astimezone(timezone.utc).isoformat()),
+                    )
             self.conn.execute(
                 """INSERT INTO cursors(source, end_cursor) VALUES (?, ?)
                 ON CONFLICT(source) DO UPDATE SET end_cursor = excluded.end_cursor""",
@@ -214,6 +253,9 @@ class ObservationStore:
             )
             for r in rows
         ]
+
+    def count_forecast_comparisons(self) -> int:
+        return self.conn.execute("SELECT COUNT(*) FROM forecast_comparisons").fetchone()[0]
 
     def count_observations(self) -> int:
         return self.conn.execute("SELECT COUNT(*) FROM observations").fetchone()[0]
