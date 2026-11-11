@@ -1,0 +1,24 @@
+[Unit]
+Description=CCNY Shuttle private GPS ETA calibration and paired source accuracy report
+After=ccny-shuttle-status.service
+Wants=ccny-shuttle-status.service
+
+[Service]
+Type=oneshot
+User=ccnyshuttle
+Group=ccnyshuttle
+Environment=PYTHONPATH=/opt/ccny-shuttle/services/gps-collector
+WorkingDirectory=/var/lib/ccny-shuttle
+ExecStart=/usr/bin/python3 -m ccny_gps.eta_evaluation --db /var/lib/ccny-shuttle/gps.sqlite3 --shadow-db /var/lib/ccny-shuttle/eta-shadow.sqlite3 --output /var/lib/ccny-shuttle/eta-evaluation.json
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/ccny-shuttle
+RestrictAddressFamilies=AF_UNIX
+MemoryMax=256M
+CPUQuota=50%
+TasksMax=16
+TimeoutStartSec=90

@@ -59,6 +59,18 @@ class ObservationStore:
                 );
                 CREATE INDEX IF NOT EXISTS forecast_comparisons_by_time
                     ON forecast_comparisons(forecast_generated_at,vehicle_id,stop_id);
+                CREATE TABLE IF NOT EXISTS vehicle_context_history (
+                    source TEXT NOT NULL,
+                    vehicle_id TEXT NOT NULL,
+                    observed_at TEXT NOT NULL,
+                    bus_name TEXT,
+                    direction TEXT,
+                    reported_status TEXT,
+                    next_stop_id TEXT,
+                    PRIMARY KEY(source,vehicle_id,observed_at)
+                );
+                CREATE INDEX IF NOT EXISTS vehicle_context_history_by_time
+                    ON vehicle_context_history(observed_at,vehicle_id);
                 CREATE TABLE IF NOT EXISTS vehicle_context (
                     source TEXT NOT NULL,
                     vehicle_id TEXT NOT NULL,
@@ -132,6 +144,16 @@ class ObservationStore:
             for vehicle_id, bus_name, direction, reported_status, next_stop, source_time in vehicle_details:
                 if source_time.tzinfo is None:
                     raise ValueError("Source vehicle status time must be timezone-aware")
+                # Store the source status at EVERY accepted GPS fix. Previously
+                # only the latest status was retained, forcing historical ETA
+                # backtests to guess directions using future stops (leakage).
+                self.conn.execute(
+                    """INSERT OR IGNORE INTO vehicle_context_history
+                    (source,vehicle_id,observed_at,bus_name,direction,reported_status,next_stop_id)
+                    VALUES(?,?,?,?,?,?,?)""",
+                    (source,vehicle_id,source_time.astimezone(timezone.utc).isoformat(),
+                     bus_name,direction,reported_status,next_stop),
+                )
                 self.conn.execute(
                     """INSERT INTO vehicle_context
                     (source,vehicle_id,bus_name,direction,reported_status,next_stop_id,observed_at,updated_at)
