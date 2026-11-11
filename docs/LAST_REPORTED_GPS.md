@@ -18,6 +18,7 @@ A phone and desktop real-browser baseline reproduced the issue: two known vehicl
 - Existing Leaflet markers are updated in place (and discarded only when their source entries become invalid), so a five-second status poll **does not close a popup** or reset the student's map view.
 - When an internet request fails, the already-known last reported locations remain visible **only as history**. The browser also keeps a *tab-scoped*, sanitized `sessionStorage` snapshot for **up to 24 hours** so a user can refresh the same tab during a connectivity outage. No GPS positions are cached by the service worker; no location history is submitted from the user's device. No driver, user, credential, or current-device geolocation is stored.
 - Small design refinements: stronger gray versus teal visual distinction, last-reported bus-number pins, larger tappable cards, cleaner map legend, compact responsive footer, and aligned controls across 320–430px phone widths.
+- Two last-reported GPS coordinates near campus may lie within about 17 meters of one another, causing numbered pins to overlap at typical map zoom. For fixes within 40 meters, the frontend now **separates only the screen-space number labels** and draws a connector to a small dot **anchored at the exact original GPS latitude/longitude**. No derived or offset geographic positions are stored or displayed as bus coordinates.
 
 ## Limitations and safeguards
 
@@ -27,9 +28,9 @@ Only buses actually recorded in the GPS source can be listed; the project **does
 
 ## Tests
 
-- **43** static frontend/unit checks and **64** GPS collector tests passed locally.
+- **44** static frontend/unit checks and **64** GPS collector tests passed locally.
 - Real production browser tests at desktop and 390px mobile found two previously observed vehicles, **two automatically visible history pins**, exact-time popup and tap-to-focus functionality.
-- Synthetic mobile browser regression at **320, 375, 390, 430px** and desktop verifies history markers appear without toggling; history can be hidden/restored; tapping a vehicle centers its marker; popups survive a 5-second GPS refresh; no horizontal overflow; and the tab's session snapshot correctly supplies *historical-only* locations after the API fails and the user reloads.
+- Synthetic mobile browser regression at **320, 375, 390, 430px** and desktop verifies history markers appear without toggling; visually separated last-GPS labels do not overlap, and each keeps an exact source-coordinate anchor; history can be hidden/restored; tapping a vehicle centers its marker; popups survive a 5-second GPS refresh; no horizontal overflow; and the tab's session snapshot correctly supplies *historical-only* locations after the API fails and the user reloads.
 - Live original GPS collector and status server remain active. No changes to `api.syndrid.com`/OmniRoute port.
 
 There is **no validated route-snapping or moving-bus dead-reckoning** in this release. Those changes require independently verified stop geometry and a measured accuracy benchmark; this release focuses on honestly presenting the last source GPS positions that we already possess.
