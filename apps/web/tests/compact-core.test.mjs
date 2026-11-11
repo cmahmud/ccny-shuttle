@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { STOPS, DESTINATIONS, R137, directionsUrl, observedAgeSeconds, validVehicle, evaluateFeed, outsideListedHours, knownFleetFromPayload, shortBusId, busDisplayName, reportedBusContext, mapLocation, ago } from "../compact-core-v9.js";
+import { movingBearing,  STOPS, DESTINATIONS, R137, directionsUrl, observedAgeSeconds, validVehicle, evaluateFeed, outsideListedHours, knownFleetFromPayload, shortBusId, busDisplayName, reportedBusContext, mapLocation, ago } from "../compact-core-v10.js";
 const NOW = Date.parse("2026-11-09T18:40:00Z");
 const bus = {
   vehicleId: "89",
@@ -203,4 +203,16 @@ test("stationary GPS visual stabilizer does not alter raw readings", () => {
   assert.equal(mapLocation({...original,freshness:"stale"},NOW).smoothed,false);
   assert.equal(mapLocation({...original,displayPosition:{...original.displayPosition,latitude:40.825}},NOW).smoothed,false);
   assert.equal(mapLocation({...original,displayPosition:{...original.displayPosition,sampleCount:1}},NOW).smoothed,false);
+});
+
+
+test("directional arrow requires source-reported fresh motion and valid heading", () => {
+  const b={...bus,reportedStatus:"moving",freshness:"fresh",headingDegrees:271};
+  assert.equal(movingBearing(b,NOW),271);
+  assert.equal(movingBearing({...b,headingDegrees:0},NOW),0);
+  assert.equal(movingBearing({...b,reportedStatus:"standing"},NOW),null);
+  assert.equal(movingBearing({...b,headingDegrees:null},NOW),null);
+  assert.equal(movingBearing({...b,headingDegrees:400},NOW),null);
+  assert.equal(movingBearing({...b,freshness:"stale"},NOW),null);
+  assert.equal(movingBearing({...b,observedAt:"2026-10-02T12:00:00Z"},NOW),null);
 });
