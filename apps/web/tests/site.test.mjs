@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 const read = (name) => readFileSync(new URL("../" + name, import.meta.url), "utf8");
 const html = read("index.html");
-const css = read("compact-v7.css");
-const js = read("compact-v10.js");
+const css = read("compact-v8.css");
+const js = read("compact-v11.js");
 const worker = read("service-worker.js");
 
 test("single compact tracker has no large hero or multi-page navigation", () => {
@@ -38,11 +38,11 @@ test("page has one map and compact responsive mobile layout", () => {
 });
 
 test("HTML references deployed versioned assets", () => {
-  assert.match(html, /\/compact-v7\.css/);
-  assert.match(html, /\/compact-v10\.js/);
+  assert.match(html, /\/compact-v8\.css/);
+  assert.match(html, /\/compact-v11\.js/);
   assert.match(js, /\.\/compact-core-v9\.js/);
-  assert.match(html, /\/service-worker\.js|\/compact-v10\.js/);
-  for (const file of ["compact-v7.css","compact-v10.js","compact-core-v9.js"]) {
+  assert.match(html, /\/service-worker\.js|\/compact-v11\.js/);
+  for (const file of ["compact-v8.css","compact-v11.js","compact-core-v9.js"]) {
     assert.ok(worker.includes("/" + file),file);
   }
 });
@@ -56,7 +56,7 @@ test("all IDs needed for UI updates exist in markup", () => {
 test("no guesses about ETAs or fake bus positions", () => {
   assert.match(html, /ETA unavailable/);
   assert.match(js, /Live shuttle positions not connected/);
-  assert.match(html, /Pins are approximate/);
+  assert.match(html, /Stop pins are approximate/);
   assert.match(js, /location|validVehicle|evaluateFeed/);
   assert.match(js, /No current bus positions/);
   assert.doesNotMatch(html, /\b\d+ min to (?:125th|145th)/);
@@ -64,7 +64,7 @@ test("no guesses about ETAs or fake bus positions", () => {
 
 test("offline caching never stores current GPS", () => {
   assert.match(worker, /url\.pathname\.startsWith\("\/api\/"\)/);
-  assert.match(worker, /ccny-smart-shuttle-compact-v10/);
+  assert.match(worker, /ccny-smart-shuttle-compact-v11/);
   assert.doesNotMatch(worker,/APP_SHELL[^;]*\/api\/v1\/vehicles/s);
 });
 
@@ -76,7 +76,7 @@ test("documented official tracker, service hours, and directions present", () =>
 });
 
 test("active module dependencies use JS served with the correct MIME type", () => {
-  assert.match(html, /\/compact-v10\.js/);
+  assert.match(html, /\/compact-v11\.js/);
   assert.match(js, /\.\/compact-core-v9\.js/);
   assert.doesNotMatch(js, /from \"[^\"]+\.mjs\"/);
   assert.doesNotMatch(worker, /\/compact-core\.mjs/);
@@ -84,10 +84,10 @@ test("active module dependencies use JS served with the correct MIME type", () =
 
 test("previously seen shuttles are discoverable but do not get live ETAs", () => {
   assert.match(html,/id="map-history"/);
-  assert.match(html,/aria-pressed="false"/);
-  assert.match(js,/Not currently reporting/);
-  assert.match(js,/Not reporting ≠ confirmed inactive/);
-  assert.match(js,/historical GPS pins shown · NOT current locations/);
+  assert.match(html,/aria-pressed="true"/);
+  assert.match(js,/Last reported GPS/);
+  assert.match(js,/Not live or confirmed inactive/);
+  assert.match(js,/last-reported GPS location/);
   assert.match(js,/knownFleetFromPayload/);
 });
 
@@ -106,4 +106,23 @@ test("visible tab polls local GPS status faster without touching upstream direct
   assert.match(js,/const POLL_MS = 5000;/);
   assert.match(js,/if \(!document.hidden\) poll\(\)/);
   assert.match(js,/fetch\("\/api\/v1\/vehicles"/);
+});
+
+test("last reported buses display their original positions by default", () => {
+  assert.match(js, /let showHistoricalPins = true/);
+  assert.match(js, /drawHistoricalMarkers\(historyCandidates\)/);
+  assert.match(js, /focusHistoricalBusOnMap/);
+  assert.match(js, /historical-bus-button/);
+  assert.match(js, /lastReportedClock/);
+  assert.match(css, /\.vehicle-pin\.historical-pin span/);
+  assert.match(html, /Last GPS/);
+});
+
+test("GPS update outages preserve historical positions but never claim they are live", () => {
+  assert.match(js, /restoreLastPositions\(\)/);
+  assert.match(js, /sessionStorage\.setItem/);
+  assert.match(js, /Last known positions shown · NOT live GPS/);
+  assert.match(js, /validCachedFleet/);
+  assert.match(js, /drawHistoricalMarkers/);
+  assert.match(js, /existing\.setPopupContent\(popup\)/);
 });
