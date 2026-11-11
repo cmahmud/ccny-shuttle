@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 const read = (name) => readFileSync(new URL("../" + name, import.meta.url), "utf8");
 const html = read("index.html");
-const css = read("compact-v8.css");
-const js = read("compact-v11.js");
+const css = read("compact-v9.css");
+const js = read("compact-v12.js");
 const worker = read("service-worker.js");
 
 test("single compact tracker has no large hero or multi-page navigation", () => {
@@ -38,11 +38,11 @@ test("page has one map and compact responsive mobile layout", () => {
 });
 
 test("HTML references deployed versioned assets", () => {
-  assert.match(html, /\/compact-v8\.css/);
-  assert.match(html, /\/compact-v11\.js/);
+  assert.match(html, /\/compact-v9\.css/);
+  assert.match(html, /\/compact-v12\.js/);
   assert.match(js, /\.\/compact-core-v9\.js/);
-  assert.match(html, /\/service-worker\.js|\/compact-v11\.js/);
-  for (const file of ["compact-v8.css","compact-v11.js","compact-core-v9.js"]) {
+  assert.match(html, /\/service-worker\.js|\/compact-v12\.js/);
+  for (const file of ["compact-v9.css","compact-v12.js","compact-core-v9.js"]) {
     assert.ok(worker.includes("/" + file),file);
   }
 });
@@ -64,7 +64,7 @@ test("no guesses about ETAs or fake bus positions", () => {
 
 test("offline caching never stores current GPS", () => {
   assert.match(worker, /url\.pathname\.startsWith\("\/api\/"\)/);
-  assert.match(worker, /ccny-smart-shuttle-compact-v11/);
+  assert.match(worker, /ccny-smart-shuttle-compact-v12/);
   assert.doesNotMatch(worker,/APP_SHELL[^;]*\/api\/v1\/vehicles/s);
 });
 
@@ -76,7 +76,7 @@ test("documented official tracker, service hours, and directions present", () =>
 });
 
 test("active module dependencies use JS served with the correct MIME type", () => {
-  assert.match(html, /\/compact-v11\.js/);
+  assert.match(html, /\/compact-v12\.js/);
   assert.match(js, /\.\/compact-core-v9\.js/);
   assert.doesNotMatch(js, /from \"[^\"]+\.mjs\"/);
   assert.doesNotMatch(worker, /\/compact-core\.mjs/);
@@ -125,4 +125,13 @@ test("GPS update outages preserve historical positions but never claim they are 
   assert.match(js, /validCachedFleet/);
   assert.match(js, /drawHistoricalMarkers/);
   assert.match(js, /existing\.setPopupContent\(popup\)/);
+});
+
+
+test("overlapping historical GPS pins have exact anchors and offset visual labels", () => {
+  assert.match(js,/function labelPositionFor/);
+  assert.match(js,/distanceBetweenReportedPoints/);
+  assert.match(js,/iconSize: \[12,12\], iconAnchor: \[6,6\]/);
+  assert.match(css,/\.history-anchor/);
+  assert.match(css,/\.historical-pin\.label-sw/);
 });
