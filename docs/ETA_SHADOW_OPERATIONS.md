@@ -4,8 +4,8 @@ Implemented 2026-11-11. **The public site still does not publish GPS-derived ETA
 
 ## Deployment status
 
-- `ccny-shuttle-eta-shadow.service`: enabled, running, **20-second interval**. Reads local GPS data already collected; does **not** poll either public website, Samsara, Google, or Waze. Output: `/var/lib/ccny-shuttle/eta-shadow.sqlite3` (SQLite, owner-only).
-- `ccny-shuttle-eta-report.timer` and `ccny-shuttle-eta-report.service`: enabled, **30-minute interval**, writing an aggregate owner-only JSON report at `/var/lib/ccny-shuttle/eta-evaluation.json` with atomic replacement (0600).
+- `ccny-shuttle-eta-shadow.service`: enabled, running, **20-second interval**. Reads local GPS data already collected; does **not** poll either public website, Samsara, Google, or Waze. Output: `/var/lib/ccny-shuttle/eta-shadow.sqlite3` (SQLite, enforced **0600 owner-only**, including one-off CLI initialization).
+- `ccny-shuttle-eta-report.timer` and `ccny-shuttle-eta-report.service`: enabled, **30-minute interval**, writing an aggregate owner-only JSON report at `/var/lib/ccny-shuttle/eta-evaluation.json` with atomic replacement (0600). The `/var/lib/ccny-shuttle` directory is restricted to the `ccnyshuttle` service user/group, and the private worker/report files cannot be reached through `shuttle.syndrid.com`.
 - `vehicle_context_history` in original GPS SQLite: appends each **source-timestamped bus direction, reported status, and next-stop context**. Previous collector retained only the last state, which would make historical live-decision backtests optimistic. The original GPS observation entries are unchanged.
 - The existing `forecast_comparisons` table records eligible student tracker reference predictions only when provided in an ordinary browser feed, at native source cadence, up to one per 30-second bus/stop/direction interval. No upstream request increase.
 - The original `ccny-shuttle-status.service`, public relay and `api.syndrid.com` OmniRoute were not repurposed. The new worker uses a **separate local SQLite database** and has no new network listeners or API endpoints.
