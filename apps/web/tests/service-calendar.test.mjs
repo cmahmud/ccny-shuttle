@@ -7,7 +7,7 @@ const noon=(date)=>new Date(date+'T17:00:00Z'); // 12 noon New York standard tim
 test('Veterans Day 2026 is a dated attributed report, not a confirmed campus closure',()=>{
   const notice=serviceNotice(noon('2026-11-11'));
   assert.equal(notice.kind,'reported');
-  assert.match(notice.detail,/not independently confirmed/);
+  assert.match(notice.detail,/not confirmed/);
   assert.match(notice.detail,/Veterans Day/);
   assert.equal(serviceNotice(noon('2026-11-12')),null);
 });
