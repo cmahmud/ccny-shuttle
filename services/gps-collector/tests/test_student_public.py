@@ -86,6 +86,56 @@ class PublicRelayTests(unittest.TestCase):
             finally:
                 store.close()
 
+    def test_student_experimental_forecasts_logged_for_future_backtest_only(self):
+        sample=payload()
+        sample["live"]["predictionsEnabled"]=False
+        sample["estimates"]={
+            "generatedAt":ms(NOW),
+            "experimental":True,
+            "stops":[{"stopId":"125","arrivals":[
+                {"vehicleId":"test-89","direction":"NB",
+                 "arrivalAt":ms(NOW+timedelta(minutes=5)),
+                 "earliestAt":ms(NOW+timedelta(minutes=4)),
+                 "latestAt":ms(NOW+timedelta(minutes=7))},
+                {"vehicleId":"not-in-feed","direction":"SB",
+                 "arrivalAt":ms(NOW+timedelta(minutes=6))}
+            ]}]
+        }
+        snapshot=parse_public_feed(sample,NOW)
+        self.assertEqual(len(snapshot.benchmark_forecasts),1)
+        self.assertFalse(snapshot.benchmark_forecasts[0][-1])
+        with tempfile.TemporaryDirectory() as tmp:
+            store=ObservationStore(str(Path(tmp)/"gps.db"))
+            try:
+                worker=PublicBrowserRelay(store,"/fake/browser")
+                self.assertEqual(worker.accept_payload(sample,NOW),2)
+                self.assertEqual(store.count_forecast_comparisons(),1)
+                # A new response in the same 30s bucket cannot multiply
+                # near-identical reference forecasts into fake samples.
+                later=NOW+timedelta(seconds=8)
+                same_bucket=payload(when=later)
+                same_bucket["live"]["predictionsEnabled"]=False
+                same_bucket["estimates"]=sample["estimates"]
+                self.assertEqual(worker.accept_payload(same_bucket,later),2)
+                self.assertEqual(store.count_forecast_comparisons(),1)
+                public=get_status(store,later)
+                self.assertNotIn("arrivalAt",str(public))
+                self.assertIn("No calibrated arrival estimates",public["warning"])
+            finally:store.close()
+
+    def test_malformed_student_estimates_never_inflate_benchmark(self):
+        sample=payload()
+        sample["estimates"]={"generatedAt":ms(NOW),"stops":[{
+            "stopId":"125","arrivals":[
+                {"vehicleId":"test-89","direction":"NB","arrivalAt":"not time"},
+                {"vehicleId":"test-89","direction":"NB",
+                 "arrivalAt":ms(NOW+timedelta(hours=5))},
+                {"vehicleId":"test-89","direction":"SB",
+                 "arrivalAt":ms(NOW-timedelta(minutes=5))}
+            ]
+        }]}
+        self.assertEqual(parse_public_feed(sample,NOW).benchmark_forecasts,())
+
     def test_sample_is_third_party_not_official(self):
         snap=parse_public_feed(payload(),NOW)
         self.assertEqual(len(snap.observations),2)
