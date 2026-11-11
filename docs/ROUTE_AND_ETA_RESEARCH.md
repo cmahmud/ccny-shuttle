@@ -11,6 +11,7 @@ Our Leaflet map now shows:
 - **Teal directional arrow** only when a bus has a fresh (<30s), source-reported `moving` status and a valid original heading. Heading 0 is valid north, while null/invalid headings are not interpreted as direction.
 - A conventional stationary bus icon when status is stopped/standing/unknown, or direction is unavailable. Stale historical locations remain gray and visually detached from live service. No geographic coordinates are inferred from direction.
 - Tapping a route displays a notice that it came from the student site. The route is a schematic centerline, **not independently surveyed**. Paths may not perfectly follow every permitted lane or detour.
+- The initial phone/desktop viewport shows the **full route loop**, not merely the latest GPS point, unless a vehicle is entirely outside those map bounds. The **All** control fits the route and stops; **Buses** and individual bus rows focus vehicles. Source-approximate 135th/Marshak markers visibly highlight when their tabs are selected.
 - Stops, current moving buses and historical bus reports are independently clickable; repeated five-second GPS status polling does not close an existing popup.
 
 **Verified:** Full map and moving arrow pass Chromium on 320px, 390px and 430px phones and 1365px desktop, with no page overflow or script errors. The public production site passed the same synthetic tests. No API credentials or new source scraping were introduced for the map.
