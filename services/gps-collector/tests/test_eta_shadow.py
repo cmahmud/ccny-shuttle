@@ -1,5 +1,6 @@
 """Synthetic contract tests for CCNY route matching and shadow ETA engine."""
 import tempfile
+import os
 import unittest
 from datetime import datetime,timedelta,timezone
 from pathlib import Path
@@ -127,6 +128,7 @@ class ShadowPredictionTests(unittest.TestCase):
                 status=store.status()
                 self.assertEqual(status["shadowForecasts"],1)
                 self.assertFalse(status["publiclyVisible"])
+                self.assertEqual(os.stat(Path(temp)/"shadow.db").st_mode & 0o777,0o600)
                 row=store.conn.execute(
                     "SELECT display_enabled,stop_id,predicted_arrival_at "
                     "FROM shadow_forecasts").fetchone()
