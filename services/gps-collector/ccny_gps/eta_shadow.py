@@ -11,6 +11,7 @@ import collections
 import json
 import logging
 import math
+import os
 from dataclasses import asdict,dataclass
 from datetime import datetime,timedelta,timezone
 from pathlib import Path
@@ -163,6 +164,9 @@ class ShadowStore:
         self.path=Path(path)
         self.path.parent.mkdir(parents=True,exist_ok=True)
         self.conn=sqlite3.connect(self.path,timeout=5)
+        # This database contains bus-level experimental forecasts. The
+        # worker has UMASK=0077, but one-off CLI initialization may not.
+        os.chmod(self.path,0o600)
         self.conn.execute("PRAGMA busy_timeout=5000")
         self.conn.executescript(SHADOW_SCHEMA)
 
