@@ -72,3 +72,22 @@ sudo -u ccnyshuttle cat /var/lib/ccny-shuttle/eta-evaluation.json
 Do not add Google Routes/Mapbox API billing or unapproved Waze crawling without an appropriate key, terms review and the owner's explicit selection. Inferred bus GPS speed was already evaluated as an empirical traffic proxy; that naive adjustment **did not improve** the initial paired historical replay, so its output remains research-only.
 
 For future optional external traffic studies, request road-segment travel times along the **fixed shuttle path**, not the fastest car route or every student's page refresh. Include scheduled stops, queueing/dwell, boarding and turnaround separately. Compare traffic-aware and nontraffic models on the **same time-separated rides**, not on leakage-prone random GPS points.
+
+## Read-only input diagnostics (2026-11-11)
+
+The private scorecard now includes `collectionHealth` (aggregated only, no bus IDs or coordinates). It separates a responsive public-source browser from actually receiving recent bus telemetry:
+
+- `relay_never_polled`: no successful public relay response recorded.
+- `relay_poll_delayed`: no successful public relay response within 45 seconds.
+- `upstream_has_no_fresh_vehicle_positions`: relay polls are healthy, but every latest bus GPS observation is more than 30 seconds old or absent. **This is expected when the upstream tracker reports zero vehicles**, and cannot be fixed by hallucinating a bus movement.
+- `no_fresh_directional_moving_vehicle`: GPS is fresh but no vehicle has a matching source-timestamped `moving` + `NB`/`SB` context record; do not generate a moving-bus ETA.
+- `fresh_moving_vehicle_available_for_shadow_checks`: inputs may be eligible; route match, next-stop concordance and training gates can still reject them.
+
+`studentForecastRows`, `shadowForecastRows`, and `contextHistoryRows` are separate counters; each may remain zero after source recovery until corresponding valid events occur. `pairedComparisonPossible` only confirms both tables contain rows, **not** that there are matched, accurate predictions. The metric does not approve or publish arrival countdowns.
+
+To review the private diagnostic without modifying services or the database:
+
+```bash
+sudo -u ccnyshuttle env PYTHONPATH=/opt/ccny-shuttle/services/gps-collector \
+  python3 -c 'from ccny_gps.eta_readiness import diagnose; import json; print(json.dumps(diagnose("/var/lib/ccny-shuttle/gps.sqlite3", "/var/lib/ccny-shuttle/eta-shadow.sqlite3"), indent=2))'
+```

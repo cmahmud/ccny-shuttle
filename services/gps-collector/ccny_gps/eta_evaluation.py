@@ -15,6 +15,7 @@ import sqlite3
 import tempfile
 
 from .eta_compare import report as paired_report
+from .eta_readiness import diagnose
 from .eta_shadow import METHOD_MEDIAN,METHOD_SPEED
 from .eta_shadow_backtest import backtest
 
@@ -23,6 +24,7 @@ def compile_report(source_db:str,shadow_db:str,now:datetime|None=None)->dict:
     now=now or datetime.now(timezone.utc)
     replay=backtest(source_db)
     paired=paired_report(source_db,shadow_db)
+    collection_health=diagnose(source_db,shadow_db,now)
     median=paired["paired"][METHOD_MEDIAN]
     # Hard publication gate: this script never changes the website and never
     # automatically sets the green light even if the numeric thresholds pass.
@@ -64,6 +66,7 @@ def compile_report(source_db:str,shadow_db:str,now:datetime|None=None)->dict:
             "replayModels":replay["metrics"],
             "replayPairedSpeedComparison":replay["pairedComparison"],
         },
+        "collectionHealth":collection_health,
         "matchedComparison":paired,
     }
 
