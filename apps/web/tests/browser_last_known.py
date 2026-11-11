@@ -65,6 +65,14 @@ async def run_one(browser, width, live=False, offline_after_reload=False):
     expected_history=1 if live else 2
     assert await history.count() == expected_history, (width,"no auto last-known pins")
     assert await rows.count() == expected_history, (width,"no last-known rows")
+    if expected_history == 2:
+        labels = await page.locator(".historical-pin .history-label").evaluate_all(
+            "els => els.map(e => {const r=e.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom}})"
+        )
+        assert len(labels)==2
+        horizontal=max(0,min(labels[0]["right"],labels[1]["right"])-max(labels[0]["left"],labels[1]["left"]))
+        vertical=max(0,min(labels[0]["bottom"],labels[1]["bottom"])-max(labels[0]["top"],labels[1]["top"]))
+        assert horizontal * vertical == 0, (width,"overlapping last-GPS labels",labels)
     assert await page.locator("#map-history").get_attribute("aria-pressed") == "true"
     assert "Last reported GPS" in await page.locator("#vehicle-list").inner_text()
     assert "NOT live" in await page.locator("#map-update").inner_text() or live
