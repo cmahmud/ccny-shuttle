@@ -34,3 +34,7 @@ jobs:
         env:
           SHUTTLE_SITE_URL: http://127.0.0.1:9000/
         run: python apps/web/tests/browser_mobile_visibility.py
+      - name: Check automatically visible last GPS positions and offline recovery
+        env:
+          SHUTTLE_SITE_URL: http://127.0.0.1:9000/
+        run: python apps/web/tests/browser_last_known.py
