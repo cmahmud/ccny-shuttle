@@ -38,3 +38,7 @@ jobs:
         env:
           SHUTTLE_SITE_URL: http://127.0.0.1:9000/
         run: python apps/web/tests/browser_last_known.py
+      - name: Verify northbound/southbound routes and moving bus heading arrows
+        env:
+          SHUTTLE_SITE_URL: http://127.0.0.1:9000/
+        run: python apps/web/tests/browser_route_overlay.py
