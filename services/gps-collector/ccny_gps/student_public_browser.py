@@ -90,6 +90,7 @@ class PublicBrowserRelay:
         inserted = self.store.commit_page(
             SOURCE, tuple(valid), f"public-feed:{milliseconds}",
             polled_at=now, vehicle_details=details,
+            benchmark_forecasts=snapshot.benchmark_forecasts,
         )
         for obs in valid:
             self._last_positions[obs.vehicle_id] = obs
