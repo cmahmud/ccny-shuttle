@@ -1,0 +1,31 @@
+[Unit]
+Description=CCNY Shuttle private ETA prediction and calibration shadow worker
+After=ccny-shuttle-status.service
+Wants=ccny-shuttle-status.service
+
+[Service]
+Type=simple
+User=ccnyshuttle
+Group=ccnyshuttle
+Environment=PYTHONPATH=/opt/ccny-shuttle/services/gps-collector
+WorkingDirectory=/var/lib/ccny-shuttle
+ExecStart=/usr/bin/python3 -m ccny_gps.eta_shadow --loop --db /var/lib/ccny-shuttle/gps.sqlite3 --shadow-db /var/lib/ccny-shuttle/eta-shadow.sqlite3 --interval 20
+Restart=on-failure
+RestartSec=20
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ReadWritePaths=/var/lib/ccny-shuttle
+RestrictAddressFamilies=AF_UNIX
+MemoryMax=160M
+CPUQuota=40%
+TasksMax=16
+
+[Install]
+WantedBy=multi-user.target
