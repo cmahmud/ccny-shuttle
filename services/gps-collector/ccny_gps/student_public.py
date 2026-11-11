@@ -29,6 +29,7 @@ MAX_VEHICLES = 25
 class PublicSnapshot:
     observations: tuple[Observation, ...]
     vehicle_details: tuple[tuple[str, str | None, str | None, str | None, str | None, datetime], ...]
+    benchmark_forecasts: tuple[tuple[str, str, str, datetime, datetime, datetime | None, datetime | None, bool], ...]
     feed_generated_at: datetime
     upstream_polled_at: datetime
     source_state: str
@@ -132,8 +133,58 @@ def parse_public_feed(payload: object, received_at: datetime) -> PublicSnapshot:
         details.clear()
     if state == "live" and not upstream_current:
         state = "stale"
+
+    # Experimental student-site estimates are evidence for future backtests,
+    # NOT approved production ETAs. Do not expose these to the public API.
+    benchmark = []
+    estimates = payload.get("estimates")
+    source_enabled = live.get("predictionsEnabled") is True
+    if state == "live" and upstream_current and isinstance(estimates, dict):
+        try:
+            estimates_time = _milliseconds(estimates.get("generatedAt"), "estimates.generatedAt")
+        except (ValueError,OverflowError):
+            estimates_time = generated
+        if abs((received_at-estimates_time).total_seconds()) <= 90:
+            stops = estimates.get("stops")
+            if isinstance(stops, list):
+                known_vehicles = {v[0] for v in details}
+                for entry in stops[:8]:
+                    if not isinstance(entry,dict) or entry.get("stopId") not in (
+                        "125","135","marshak","145"
+                    ):
+                        continue
+                    stop = entry["stopId"]
+                    arrivals = entry.get("arrivals")
+                    if not isinstance(arrivals, list):
+                        continue
+                    for item in arrivals[:12]:
+                        if not isinstance(item, dict):
+                            continue
+                        try:
+                            vid = item.get("vehicleId")
+                            direction = item.get("direction")
+                            if vid not in known_vehicles or direction not in ("NB","SB"):
+                                continue
+                            arrival = _milliseconds(item.get("arrivalAt"),"arrivalAt")
+                            eta_seconds=(arrival-estimates_time).total_seconds()
+                            if not -120 <= eta_seconds <= 7200:
+                                continue
+                            def optional_time(key):
+                                value=item.get(key)
+                                if value is None:return None
+                                try:return _milliseconds(value,key)
+                                except (ValueError,OverflowError):return None
+                            early=optional_time("earliestAt")
+                            late=optional_time("latestAt")
+                            if early and early>arrival:early=None
+                            if late and late<arrival:late=None
+                            benchmark.append((stop,vid,direction,estimates_time,
+                                              arrival,early,late,source_enabled))
+                        except (ValueError,TypeError,OverflowError):
+                            continue
     return PublicSnapshot(
-        tuple(observations), tuple(details), generated, polled, state, rejected
+        tuple(observations), tuple(details), tuple(benchmark),
+        generated, polled, state, rejected
     )
 
 
