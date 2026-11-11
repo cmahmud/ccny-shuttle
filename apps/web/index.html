@@ -10,10 +10,10 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin>
-  <link rel="stylesheet" href="/compact-v10.css">
+  <link rel="stylesheet" href="/compact-v11.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script type="module" src="/compact-v14.js"></script>
+  <script type="module" src="/compact-v15.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#tracker">Skip to tracker</a>
@@ -42,6 +42,12 @@
         <a href="https://cloud.samsara.com/o/4010168/fleet/viewer/FJMjrX1YlqCqlGxIKkXY" target="_blank" rel="noopener noreferrer">Official live map ↗</a>
       </div>
     </section>
+
+    <div class="service-advisory" id="service-advisory" role="note" aria-live="polite" hidden>
+      <span class="advisory-icon" aria-hidden="true">ⓘ</span>
+      <div class="advisory-copy"><strong id="service-advisory-title"></strong><span id="service-advisory-detail"></span></div>
+      <a class="advisory-link" id="service-advisory-link" href="https://www.ccny.cuny.edu/about/gettingthere" target="_blank" rel="noopener noreferrer">Source ↗</a>
+    </div>
 
     <div class="stop-tabs" id="stop-tabs" role="tablist" aria-label="Select CCNY shuttle stop">
       <button class="stop-tab is-selected" type="button" role="tab" aria-selected="true" aria-controls="stop-panel" id="tab-125" data-stop="125"><span class="tab-label">125th St</span><small>Post Office</small></button>
