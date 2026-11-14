@@ -51,7 +51,9 @@ def load_config(path: str) -> ReplayConfig:
     return ReplayConfig(stops, vehicles, edges)
 
 
-def read_fixes(db_path: str, allowed: frozenset[str]) -> list[GPSFix]:
+def read_fixes(db_path: str, allowed: frozenset[str], source: str = "samsara") -> list[GPSFix]:
+    if source not in ("samsara", "student_public"):
+        raise ValueError("Unsupported GPS source")
     p = Path(db_path).expanduser().resolve()
     if not p.is_file():
         raise FileNotFoundError("GPS observation database is missing")
@@ -60,15 +62,15 @@ def read_fixes(db_path: str, allowed: frozenset[str]) -> list[GPSFix]:
         # Only source-confirmed observations already saved by the authorized collector.
         rows = connection.execute(
             "SELECT vehicle_id, observed_at, latitude, longitude, speed_mph "
-            "FROM observations WHERE source = 'samsara' "
-            "ORDER BY observed_at ASC, id ASC"
+            "FROM observations WHERE source = ? "
+            "ORDER BY observed_at ASC, id ASC", (source,)
         )
         fixes = []
         for vehicle_id, observed_at, latitude, longitude, speed_mph in rows:
             if vehicle_id not in allowed:
                 continue
             fixes.append(GPSFix(vehicle_id, datetime.fromisoformat(observed_at),
-                                latitude, longitude, speed_mph))
+                                latitude, longitude, speed_mph, source=source))
         return fixes
     finally:
         connection.close()
@@ -87,6 +89,7 @@ def replay(config: ReplayConfig, fixes: list[GPSFix]):
 def main():
     parser = argparse.ArgumentParser(description="Replay *previously collected* CCNY GPS history")
     parser.add_argument("--gps-db", required=True, help="Read-only collector SQLite database")
+    parser.add_argument("--source", choices=("samsara", "student_public"), default="samsara")
     parser.add_argument("--verified-config", required=True,
                         help="JSON with manually validated stop geofences, shuttle IDs and route edges")
     parser.add_argument("--history-db", help="Separate writable inferred stop-event/history SQLite database")
@@ -98,9 +101,10 @@ def main():
     if args.history_db and Path(args.history_db).resolve() == Path(args.gps_db).resolve():
         parser.error("GPS source and event history cannot use the same database")
     config = load_config(args.verified_config)
-    fixes = read_fixes(args.gps_db, config.vehicles)
+    fixes = read_fixes(args.gps_db, config.vehicles, source=args.source)
     events, samples = replay(config, fixes)
     result = {"mode": "dry_run" if args.dry_run else "persistent_replay",
+              "gps_source": args.source,
               "gps_observations": len(fixes), "inferred_stop_events": len(events),
               "completed_travel_legs": len(samples), "live_gps": False}
     if not args.dry_run:

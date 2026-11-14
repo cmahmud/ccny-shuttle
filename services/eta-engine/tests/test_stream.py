@@ -116,8 +116,34 @@ class StreamTests(unittest.TestCase):
         self.insert(10, *A)
         with IncrementalEventIngestor(str(self.gps), str(self.history), config()) as worker:
             result = worker.process_batch()
-            self.assertEqual(result.processed, 6)
+            self.assertEqual(result.processed, 4)  # source-filtered, including 2 disallowed IDs
             self.assertEqual(result.new_events, 1)
+
+    def test_third_party_source_history_is_separately_checkpointed(self):
+        self.insert(0,*A,source="samsara")
+        self.insert(0,*A,source="student_public")
+        self.insert(10,*A,source="student_public")
+        self.insert(15,*A,source="samsara")
+        with IncrementalEventIngestor(str(self.gps),str(self.history),config(),
+                                       source="student_public") as worker:
+            first=worker.process_batch()
+            self.assertEqual(first.processed,2)
+            self.assertEqual(first.new_events,1)
+            self.assertEqual(first.last_source_id,3)
+        with IncrementalEventIngestor(str(self.gps),str(self.history),config(),
+                                       source="student_public") as worker:
+            self.assertEqual(worker.process_batch().processed,0)
+        store=HistoryStore(str(self.history))
+        self.assertEqual([e.kind for e in store.get_events()],["arrival"])
+        store.close()
+        with self.assertRaisesRegex(ValueError,"different GPS source"):
+            IncrementalEventIngestor(str(self.gps),str(self.history),config(),
+                                      source="samsara")
+
+    def test_student_source_invalid_name_is_rejected(self):
+        with self.assertRaisesRegex(ValueError,"Unsupported GPS"):
+            IncrementalEventIngestor(str(self.gps),str(self.history),config(),
+                                      source="unknown")
 
     def test_new_rows_after_checkpoint_do_not_replay_old_rows(self):
         self.insert(0, *A)

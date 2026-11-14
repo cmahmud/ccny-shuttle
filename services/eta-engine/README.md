@@ -117,3 +117,25 @@ Run the new regression suite:
 ```sh
 PYTHONPATH=services/eta-engine python3 -m unittest discover -s services/eta-engine/tests -v
 ```
+
+## Public relay GPS source support (2026-11-09)
+
+The historical-event engine now accepts an explicit `--source student_public` flag for previously collected third-party browser-relay GPS. Official `samsara` observations remain supported separately. This merely enables **source-aware processing**; it does not mean stop arrivals have been verified or that ETA predictions are ready.
+
+```sh
+# Requires a PRIVATE, field-verified geofence configuration and an explicit
+# allowlist of the shuttle IDs exactly as exposed by the selected source.
+PYTHONPATH=services/eta-engine python3 -m ccny_eta.replay \
+  --gps-db /var/lib/ccny-shuttle/gps.sqlite3 \
+  --source student_public \
+  --verified-config /etc/ccny-shuttle/verified-stops.json --dry-run
+
+# When validated, backfill into a dedicated third-party source DB:
+PYTHONPATH=services/eta-engine python3 -m ccny_eta.stream \
+  --gps-db /var/lib/ccny-shuttle/gps.sqlite3 \
+  --source student_public \
+  --history-db /var/lib/ccny-shuttle/student-eta-history.sqlite3 \
+  --verified-config /etc/ccny-shuttle/verified-stops.json --once
+```
+
+**Source provenance guard:** the incremental ingestor refuses to process one GPS source into a database already checkpointed for another. The source observation DB is always read-only, the geofences must be explicitly confirmed, and inferred geofence stop events are **not** independently verified actual arrivals. The old `ccny-shuttle-history.service` remains disabled because no valid `/etc/ccny-shuttle/verified-stops.json` file has been provisioned.
