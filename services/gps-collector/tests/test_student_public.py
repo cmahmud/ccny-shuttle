@@ -248,6 +248,11 @@ class PublicRelayTests(unittest.TestCase):
                 worker=PublicBrowserRelay(store,"/fake/path")
                 self.assertEqual(worker.accept_payload(payload(),NOW),2)
                 self.assertEqual(worker.accept_payload(payload(),NOW),0)
+                # One snapshot per new source-generatedAt; a repeated HTML
+                # response doesn't fabricate extra GPS or health samples.
+                health=store.conn.execute("SELECT accepted_fixes,unchanged_fixes "
+                    "FROM relay_health_samples").fetchall()
+                self.assertEqual(health,[(2,0)])
                 status=get_status(store,NOW)
                 self.assertEqual(status["source"],"student_public")
                 self.assertFalse(status["independentlyVerified"])
@@ -267,6 +272,9 @@ class PublicRelayTests(unittest.TestCase):
                 jumped=payload(when=later)
                 jumped["live"]["vehicles"][0]["lat"]=40.85
                 self.assertEqual(worker.accept_payload(jumped,later),1)
+                health=store.conn.execute("SELECT accepted_fixes,unchanged_fixes,jump_rejections "
+                    "FROM relay_health_samples ORDER BY id").fetchall()
+                self.assertEqual(health,[(2,0,0),(1,0,1)])
                 latest={o.vehicle_id:o for o in store.latest_observations("student_public")}
                 self.assertAlmostEqual(latest["test-89"].latitude,40.8205)
                 self.assertEqual(store.count_observations(),3)
@@ -281,6 +289,9 @@ class PublicRelayTests(unittest.TestCase):
                 newer=payload(when=NOW+timedelta(seconds=20))
                 newer["live"]["vehicles"][0]["observedAt"]=ms(NOW-timedelta(seconds=5))
                 self.assertEqual(worker.accept_payload(newer,NOW+timedelta(seconds=20)),1)
+                health=store.conn.execute("SELECT accepted_fixes,unchanged_fixes,jump_rejections "
+                    "FROM relay_health_samples ORDER BY id").fetchall()
+                self.assertEqual(health,[(2,0,0),(1,1,0)])
             finally:store.close()
 
     def test_official_live_takes_priority_over_student(self):
