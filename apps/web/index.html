@@ -4,16 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#171b38">
-  <meta name="description" content="CCNY Shuttle: pickup stops, live GPS status, map and walking routes in one place.">
+  <meta name="description" content="CCNY Shuttle: pickup stops, GPS freshness, arrival projections and shuttle map in one place.">
   <meta name="color-scheme" content="light">
   <title>CCNY Shuttle · Tracker</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin>
-  <link rel="stylesheet" href="/compact-v15.css">
+  <link rel="stylesheet" href="/compact-v17.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script type="module" src="/compact-v19.js"></script>
+  <script type="module" src="/compact-v21.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#tracker">Skip to tracker</a>
@@ -100,22 +100,7 @@
           </div>
         </article>
 
-        <article class="trip-card" aria-label="Walking directions">
-          <div class="trip-top"><strong>Going to campus?</strong><span class="trip-tag">WALKING ROUTES</span></div>
-          <label for="destination-select" class="sr-only">Campus destination</label>
-          <select id="destination-select">
-            <option value="nac">North Academic Center (NAC)</option>
-            <option value="marshak">Marshak Science Building</option>
-            <option value="shepard">Shepard Hall</option>
-            <option value="steinman">Steinman Hall · Engineering</option>
-            <option value="spitzer">Spitzer Hall · Architecture</option>
-          </select>
-          <div class="trip-links">
-            <a id="walk-selected" class="trip-link primary" href="#" target="_blank" rel="noopener noreferrer">Walk from selected stop <span aria-hidden="true">↗</span></a>
-            <a id="walk-137" class="trip-link alt" href="#" target="_blank" rel="noopener noreferrer">From 137th St (1) <span aria-hidden="true">↗</span></a>
-          </div>
-          <p class="trip-hint" id="trip-hint">Fastest-route recommendations are unavailable without live data.</p>
-        </article>
+
       </div>
     </section>
 
