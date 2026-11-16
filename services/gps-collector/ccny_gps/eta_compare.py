@@ -19,6 +19,8 @@ import statistics
 from .eta_research import Pass,gps_passes,read_fixes
 from .eta_shadow import METHOD_MEDIAN,METHOD_SPEED
 from .eta_calibration import walk_forward_calibration
+from .eta_validation_audit import matched_coverage
+from .eta_direction_context import read_event_directions
 
 HORIZONS=(3,5,10)
 MAX_PAIR_TIMESTAMP_DIFFERENCE_SECONDS=75
@@ -136,7 +138,8 @@ def _event_cluster_bootstrap(rows:list[dict],resamples:int=1200)->dict:
 
 def evaluate_pairs(
     events:list[Pass],shadow:list[dict],student:list[dict],
-    horizons:tuple[int,...]=HORIZONS,window_seconds:int=75
+    horizons:tuple[int,...]=HORIZONS,window_seconds:int=75,
+    event_directions:dict[tuple,str]|None=None
 )->dict:
     by_shadow:dict[tuple,list[dict]]=collections.defaultdict(list)
     by_student:dict[tuple,list[dict]]=collections.defaultdict(list)
@@ -146,12 +149,14 @@ def evaluate_pairs(
         by_student[row["vehicle"],row["stop"],row["direction"]].append(row)
     comparisons=[]
     shadow_eligible=collections.Counter()
-    by_event:dict[tuple,list[datetime]]=collections.defaultdict(list)
+    event_directions=event_directions or {}
+    by_event:dict[tuple,list[Pass]]=collections.defaultdict(list)
     for event in events:
-        by_event[event.vehicle_id,event.stop_id].append(event.timestamp)
-    for ts in by_event.values():
-        ts.sort()
+        by_event[event.vehicle_id,event.stop_id].append(event)
+    for track in by_event.values():
+        track.sort(key=lambda e:e.timestamp)
     for event in events:
+        event_direction=event_directions.get((event.vehicle_id,event.stop_id,event.timestamp))
         for horizon in horizons:
             desired=event.timestamp-timedelta(minutes=horizon)
             candidates=[
@@ -159,6 +164,7 @@ def evaluate_pairs(
                 if abs((row["at"]-desired).total_seconds())<=window_seconds
                 and row["observedAt"]<=row["at"]<=event.timestamp
                 and row["method"] in (METHOD_MEDIAN,METHOD_SPEED)
+                and (event_direction is None or row["direction"]==event_direction)
             ]
             for method in (METHOD_MEDIAN,METHOD_SPEED):
                 possibilities=[r for r in candidates if r["method"]==method]
@@ -179,14 +185,23 @@ def evaluate_pairs(
                 # There must not be another GPS pass of this same bus and stop
                 # near the prediction. This guards against matching the next
                 # loop's forecast to the previous loop's actual arrival.
-                event_times=by_event[event.vehicle_id,event.stop_id]
+                event_track=by_event[event.vehicle_id,event.stop_id]
+                event_times=[e.timestamp for e in event_track]
                 nearby_index=bisect.bisect_left(event_times,event.timestamp)
-                earlier=event_times[nearby_index-1] if nearby_index>0 else None
-                later=event_times[nearby_index+1] if nearby_index+1<len(event_times) else None
-                if ((earlier is not None and
-                     (event.timestamp-earlier).total_seconds()<1800) or
-                    (later is not None and
-                     (later-event.timestamp).total_seconds()<1800)):
+                neighbors=event_track[max(0,nearby_index-1):nearby_index]+\
+                          event_track[nearby_index+1:nearby_index+2]
+                def plausible_same_loop(other):
+                    if abs((event.timestamp-other.timestamp).total_seconds())>=1800:
+                        return False
+                    other_direction=event_directions.get(
+                        (other.vehicle_id,other.stop_id,other.timestamp))
+                    # A nearby opposite-direction passage can be legitimate.
+                    # Without PRE-passage moving direction on BOTH visits,
+                    # retain the original conservative ambiguity rejection.
+                    return not (event_direction in ('NB','SB') and
+                                other_direction in ('NB','SB') and
+                                event_direction!=other_direction)
+                if any(plausible_same_loop(other) for other in neighbors):
                     continue
                 own_err=abs((own["eta"]-event.timestamp).total_seconds())/60
                 student_err=abs((student_choice["eta"]-event.timestamp).total_seconds())/60
@@ -249,6 +264,7 @@ def evaluate_pairs(
                 "meanWidthMinutes":round(statistics.mean(r["shadowRangeWidthMinutes"]
                     for r in shadow_ranges),3) if shadow_ranges else None,
             },
+            "matchedCoverage":matched_coverage(subset),
             "pairedSamples":len(subset),
             "shadowMAEminutes":round(statistics.mean(
                 x["shadowAbsErrorMinutes"] for x in subset),3) if subset else None,
@@ -279,8 +295,12 @@ def evaluate_pairs(
 
 def report(gps_db:str,shadow_db:str)->dict:
     events=gps_passes(read_fixes(gps_db))
-    return evaluate_pairs(events,read_shadow_rows(shadow_db),
-                          read_student_rows(gps_db))
+    directions=read_event_directions(gps_db,events)
+    result=evaluate_pairs(events,read_shadow_rows(shadow_db),
+                          read_student_rows(gps_db),event_directions=directions)
+    result['attributedPassages']=len(directions)
+    result['directionAttribution']='source moving context before GPS passage only; missing directions stay conservatively ambiguous'
+    return result
 
 
 def main():
