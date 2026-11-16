@@ -18,6 +18,63 @@ def _percentile(values:list[float], fraction:float)->float|None:
     return round(ordered[pos],1)
 
 
+def _sample_gap_episodes(rows:list[tuple], max_interval_s:int=45)->dict:
+    """Bounded all-bus no-fresh-fix episodes, observed source samples only.
+
+    No source-status payload means we cannot tell standing buses from GPS
+    outages. Therefore call these *freshness gaps*, NEVER service downtime.
+    All episode durations are lower bounds measured only across consecutive
+    accepted browser feed samples; a missing source response breaks an episode.
+    """
+    if not 5<=max_interval_s<=120:
+        raise ValueError('Invalid accepted-source continuity window')
+    samples=[]
+    for item in rows:
+        try:
+            at=datetime.fromisoformat(item[0].replace('Z','+00:00'))
+            if at.tzinfo is None:continue
+            samples.append((at.astimezone(timezone.utc),
+                item[1]=='live' and item[3]<=45 and item[4]>0 and item[10]==0))
+        except (ValueError,TypeError,AttributeError,IndexError):continue
+    samples.sort()
+    intervals=[(b[0]-a[0]).total_seconds() for a,b in zip(samples,samples[1:])
+        if 0<=(b[0]-a[0]).total_seconds()<=86400]
+    def pct(p):return _percentile(intervals,p)
+    episodes=[]
+    open_start=None
+    last=None
+    count=0
+    def close():
+        if open_start is not None and last is not None:
+            episodes.append(((last-open_start).total_seconds(),count,open_start,last))
+    for at,has_gap in samples:
+        if not has_gap:
+            close();open_start=None;last=None;count=0
+            continue
+        if open_start is None:
+            open_start=last=at;count=1
+        elif 0<=(at-last).total_seconds()<=max_interval_s:
+            last=at;count+=1
+        else:
+            close();open_start=last=at;count=1
+    close()
+    longest=max(episodes,key=lambda x:x[0]) if episodes else None
+    return {
+        'sampleIntervalSecondsP50':pct(.5),
+        'sampleIntervalSecondsP90':pct(.9),
+        'sampleIntervalSecondsP99':pct(.99),
+        'allVehicleNoFreshGpsEpisodes':len(episodes),
+        'episodesWithObservedDurationAtLeast60Seconds':sum(e[0]>=60 for e in episodes),
+        'episodesWithObservedDurationAtLeast120Seconds':sum(e[0]>=120 for e in episodes),
+        'longestObservedNoFreshGpsSeconds':round(longest[0],1) if longest else None,
+        'longestObservedNoFreshGpsWindowUTC':{
+            'from':longest[2].isoformat(),'to':longest[3].isoformat(),
+            'sourceSamples':longest[1],
+        } if longest else None,
+        'interpretation':'Only contiguous accepted source snapshots with reported vehicles and no fresh GPS; may include intentionally stationary buses, not evidence of a transit outage',
+    }
+
+
 def summarize_samples(rows:list[tuple], now:datetime)->dict:
     """Summarize private aggregate delivery observations (not service uptime)."""
     if now.tzinfo is None:raise ValueError("now must be timezone aware")
@@ -26,6 +83,7 @@ def summarize_samples(rows:list[tuple], now:datetime)->dict:
         'sourceHealthySampleFraction':None,'freshBusSampleFraction':None,
         'unchangedFixes':0,'jumpRejections':0,'invalidReports':0,
         'status':'no_samples_yet',
+        'freshnessGapDiagnostics':_sample_gap_episodes([]),
         'limits':['No conclusions about bus activity or service uptime without samples.'],
     }
     # columns: timestamp, sourceState, feedAge, upstreamAge, reported,
@@ -67,6 +125,7 @@ def summarize_samples(rows:list[tuple], now:datetime)->dict:
         'newestGpsAgeSecondsP90':_percentile(valid_ages,.9),
         'upstreamPollAgeSecondsP90':_percentile(upstream_ages,.9),
         'latestSampleAt':rows[-1][0],
+        'freshnessGapDiagnostics':_sample_gap_episodes(rows),
         'hourlyUtc':by_hour,
         'limits':[
             'Source-accepted response sampling is not continuous uptime monitoring.',
