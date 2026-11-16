@@ -3,11 +3,13 @@ import asyncio,json,os
 from datetime import datetime,timezone
 from playwright.async_api import async_playwright
 SITE=os.getenv('SHUTTLE_SITE_URL','http://127.0.0.1:9819/')
-CHROME=os.getenv('SHUTTLE_CHROMIUM_PATH','/opt/ccny-shuttle/runtime/chromium-1228/chrome-linux/chrome')
+CHROME=os.getenv('SHUTTLE_CHROMIUM_PATH')
 
 async def main():
   async with async_playwright() as playwright:
-    browser=await playwright.chromium.launch(executable_path=CHROME,headless=True,args=['--no-sandbox','--disable-dev-shm-usage'])
+    options={'headless':True}
+    if CHROME: options.update(executable_path=CHROME,args=['--no-sandbox','--disable-dev-shm-usage'])
+    browser=await playwright.chromium.launch(**options)
     try:
       for width in (320,390,430,1365):
         context=await browser.new_context(viewport={'width':width,'height':844},is_mobile=width<760,has_touch=width<760,service_workers='block')
