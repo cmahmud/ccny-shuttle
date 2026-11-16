@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   viewer-metadata:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Playwright 1.57 Chromium lacks Ubuntu 26.04 support
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
