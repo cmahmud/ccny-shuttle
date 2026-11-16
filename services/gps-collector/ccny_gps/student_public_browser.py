@@ -11,7 +11,8 @@ import argparse
 import asyncio
 from datetime import datetime, timezone
 import logging
-from math import cos, hypot, radians
+import sqlite3
+from math import cos, hypot, radians, isfinite
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -73,11 +74,16 @@ class PublicBrowserRelay:
         # alter coordinates without a new original timestamp; ignore those too.
         valid = []
         movement_rejected = 0
+        unchanged = 0
         for obs in snapshot.observations:
             previous = self._last_positions.get(obs.vehicle_id)
             if previous:
                 dt = (obs.observed_at - previous.observed_at).total_seconds()
-                if dt <= 0 or surface_distance_m(obs, previous) > max(55, dt * 35):
+                if dt <= 0:
+                    # An unchanged source fix is normal, not invalid GPS.
+                    unchanged += 1
+                    continue
+                if surface_distance_m(obs, previous) > max(55, dt * 35):
                     movement_rejected += 1
                     continue
             valid.append(obs)
@@ -94,6 +100,46 @@ class PublicBrowserRelay:
         )
         for obs in valid:
             self._last_positions[obs.vehicle_id] = obs
+        # Diagnostic-only aggregate: the public feed can update while its
+        # GPS devices are silent. Count that distinction on EVERY accepted
+        # unique feed timestamp, not only successful GPS inserts.
+        live = payload.get("live", {})
+        reported = live.get("vehicles", [])
+        if not isinstance(reported, list):
+            reported = []
+        source_ages = []
+        for item in reported[:25]:
+            if not isinstance(item, dict):
+                continue
+            stamp = item.get("observedAt")
+            if (isinstance(stamp, (int, float)) and not isinstance(stamp, bool)
+                and isfinite(stamp) and 1_600_000_000_000 <= stamp <= 4_000_000_000_000):
+                age = (now.timestamp() * 1000 - stamp) / 1000
+                if 0 <= age <= 86400:
+                    source_ages.append(age)
+        upstream_age = max(0, (now - snapshot.upstream_polled_at).total_seconds())
+        fresh = sum(age <= 30 for age in source_ages) if (
+            snapshot.source_state == "live" and upstream_age <= 45
+        ) else 0
+        try:
+            self.store.record_relay_health({
+                "source": SOURCE, "recorded_at": now,
+                "source_state": snapshot.source_state,
+                "feed_age_s": max(0, (now - snapshot.feed_generated_at).total_seconds()),
+                "upstream_poll_age_s": min(upstream_age, 86400),
+                "source_reported_vehicles": len(reported),
+                "parsed_vehicles": len(snapshot.observations),
+                "accepted_fixes": len(valid),
+                "unchanged_fixes": unchanged,
+                "jump_rejections": movement_rejected,
+                "invalid_reports": snapshot.vehicles_rejected,
+                "fresh_source_vehicles": fresh,
+                "newest_vehicle_age_s": min(source_ages) if source_ages else None,
+                "oldest_vehicle_age_s": max(source_ages) if source_ages else None,
+            })
+        except sqlite3.OperationalError as exc:
+            # Telemetry is optional; never interrupt live GPS for a health metric.
+            LOG.warning("Could not record relay quality sample: %s", type(exc).__name__)
         self.last_generated_ms = milliseconds
         self.last_good_response = now
         self.valid_responses += 1
@@ -101,9 +147,9 @@ class PublicBrowserRelay:
         if self.valid_responses == 1 or self.valid_responses % 15 == 0:
             LOG.info(
                 "Student public relay responsive; upstream_state=%s vehicles=%d "
-                "new_observations=%d rejected=%d total=%d",
-                snapshot.source_state, len(valid), inserted,
-                snapshot.vehicles_rejected + movement_rejected, self.inserted_total,
+                "new_observations=%d unchanged=%d bad_jump=%d invalid=%d total=%d",
+                snapshot.source_state, len(valid), inserted, unchanged,
+                movement_rejected, snapshot.vehicles_rejected, self.inserted_total,
             )
         return inserted
 
