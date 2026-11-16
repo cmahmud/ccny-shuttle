@@ -54,3 +54,7 @@ jobs:
         env:
           SHUTTLE_SITE_URL: http://127.0.0.1:9000/
         run: python apps/web/tests/browser_source_arrivals.py
+      - name: Verify source-reported standing, inactive and unknown statuses
+        env:
+          SHUTTLE_SITE_URL: http://127.0.0.1:9000/
+        run: python apps/web/tests/browser_source_status.py
