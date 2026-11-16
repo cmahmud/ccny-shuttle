@@ -82,6 +82,25 @@ class SourceArrivalDisplayTests(unittest.TestCase):
         self.assertEqual(response['source'],'samsara')
         self.assertIsNone(response['sourceArrivalEstimates'])
 
+    def test_source_provided_bounds_are_forwarded_only_when_ordered(self):
+        estimate=NOW+timedelta(minutes=12)
+        earliest=NOW+timedelta(minutes=8)
+        latest=NOW+timedelta(minutes=17)
+        self.load(entries=(('125','fake-bus-1','SB',NOW,estimate,earliest,latest,False),))
+        row=get_status(self.db,NOW)['sourceArrivalEstimates']['stops']['125'][0]
+        self.assertEqual(row['earliestAt'],earliest.isoformat())
+        self.assertEqual(row['latestAt'],latest.isoformat())
+        self.assertFalse(row['providerPredictionsEnabled'])
+        self.assertFalse(get_status(self.db,NOW)['sourceArrivalEstimates']['calibrated'])
+
+    def test_bogus_earliest_latest_never_fabricate_a_range(self):
+        estimate=NOW+timedelta(minutes=12)
+        self.load(entries=(('125','fake-bus-1','SB',NOW,estimate,
+                            NOW+timedelta(minutes=16),NOW+timedelta(minutes=20),False),))
+        row=get_status(self.db,NOW)['sourceArrivalEstimates']['stops']['125'][0]
+        self.assertIsNone(row['earliestAt'])
+        self.assertIsNone(row['latestAt'])
+
     def test_no_forecast_for_nac_or_unknown_stop(self):
         self.load()
         output=get_status(self.db,NOW)['sourceArrivalEstimates']
