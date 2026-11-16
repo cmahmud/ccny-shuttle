@@ -42,3 +42,11 @@ jobs:
         env:
           SHUTTLE_SITE_URL: http://127.0.0.1:9000/
         run: python apps/web/tests/browser_route_overlay.py
+      - name: Verify quiet one-screen layout at desktop and phone widths
+        env:
+          SHUTTLE_SITE_URL: http://127.0.0.1:9000/
+        run: python apps/web/tests/browser_compact_cleanup.py
+      - name: Verify date-aware academic service notifications with fixed clock
+        env:
+          SHUTTLE_SITE_URL: http://127.0.0.1:9000/
+        run: python apps/web/tests/browser_service_notice.py
