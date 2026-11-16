@@ -19,7 +19,10 @@ def payload(gps_live=True,forecasts_live=True):
        'locationKind':'third_party_observed'},
     ]
     def row(bus,dir,m):return {'vehicleId':f'synthetic-{bus}','busName':bus,'direction':dir,
-                 'arrivalAt':fmt(now+timedelta(minutes=m)),'providerPredictionsEnabled':False}
+                 'arrivalAt':fmt(now+timedelta(minutes=m)),
+                 'earliestAt':fmt(now+timedelta(minutes=m-3)),
+                 'latestAt':fmt(now+timedelta(minutes=m+4)),
+                 'providerPredictionsEnabled':False}
     estimates={'source':'student_public','experimental':True,'calibrated':False,
       'generatedAt':fmt(now-timedelta(seconds=10 if forecasts_live else 180)),
       'stops':{
@@ -47,6 +50,8 @@ async def check(browser,width):
     assert await page.locator('.arrival-next-tag').count()==1
     assert await page.locator('.arrival-next-tag').inner_text()=='NEXT'
     assert await page.locator('.arrival-row.is-next').count()==1
+    assert await page.locator('.arrival-source-window').count()==3
+    assert 'Source window' in await page.locator('.arrival-source-window').first.inner_text()
     clock=await page.locator('.arrival-clock-time').first.inner_text()
     assert ('AM' in clock or 'PM' in clock),clock
     assert 'Unverified' in await page.locator('#arrival-provenance').inner_text()
@@ -79,6 +84,7 @@ async def check(browser,width):
     assert await page.locator('.arrival-row.is-next').count()==0
     assert await page.locator('.arrival-next-tag').count()==0
     assert 'STALE' in await page.locator('#arrival-provenance').inner_text()
+    assert await page.locator('.arrival-source-window').count()==3
     assert 'AM' in await page.locator('.arrival-clock-time').first.inner_text() or 'PM' in await page.locator('.arrival-clock-time').first.inner_text()
     # A reload during the grace period recovers only the saved, labeled snapshot.
     await page.reload(wait_until='domcontentloaded',timeout=30000)
