@@ -215,7 +215,7 @@ test("gps-old third-party projections are not live ETAs",()=>{
  assert.match(js,/projection_without_fresh_gps/);
  assert.match(js,/GPS-old projections/);
  assert.match(js,/SOURCE PROJECTION/);
- assert.match(js,/index===0 && !stale && !projected/);
+ assert.match(js,/index===0 && !stale && !entry.isProjection/);
  assert.match(css,/\.arrival-panel\.is-projection/);
 });
 
