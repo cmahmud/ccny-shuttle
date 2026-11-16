@@ -40,7 +40,7 @@ async def check(browser,width):
       legend:rect('.map-note'),
       attribution:rect('.leaflet-control-attribution'),
       lastTabRect:(()=>{const r=document.querySelector('#tab-nac').getBoundingClientRect();return {right:r.right,left:r.left};})(),
-      transitHintHidden:getComputedStyle(document.querySelector('.trip-hint')).display==='none'
+      transitHintRemoved:document.querySelector('.trip-hint')===null
     };
   }''')
   assert not layout['overflow'] and not errors,(width,errors,layout)
@@ -48,7 +48,7 @@ async def check(browser,width):
   assert layout['header']['height']<=29,layout
   assert max(layout['stopPills'])<=44,layout
   assert layout['lastPinControlHidden'] and not layout['mapBusControlHidden']
-  assert layout['transitHintHidden'] and layout['map']['height']>200
+  assert layout['transitHintRemoved'] and layout['map']['height']>200
   assert layout['mapTileFilter']!='none'
   if width>=390:
     assert layout['lastTabRect']['right'] <= width-8,layout
