@@ -30,7 +30,8 @@ async def verify(browser, label,w,h, mobile, count):
     initial=await page.evaluate('''() => {
       const props=(s)=>{const e=document.querySelector(s);if(!e)return null;const r=e.getBoundingClientRect();return {left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}};
       return {card:props(".card-bar"),title:props(".card-bar-title"),actions:props(".map-actions"),
-        eta:props(".eta-hero"),fleet:props(".fleet-section-label"),map:props(".map-wrapper"),
+        eta:props(".eta-hero"),stopLocation:props(".stop-location"),
+        fleet:props(".fleet-section-label"),map:props(".map-wrapper"),
         scrollWidth:document.documentElement.scrollWidth,viewportWidth:window.innerWidth};
     }''')
     bus_button=page.locator("#map-buses")
@@ -51,12 +52,14 @@ async def verify(browser, label,w,h, mobile, count):
          "known_historical":await page.locator(".historical-bus-row").count(),
          "map_header_one_line":initial['title']['height']<=initial['card']['height']-2,
          "map_header_no_overlap":initial['title']['right']+4<=initial['actions']['left'],
-         "fleet_eta_gap_px":round(initial['fleet']['top']-initial['eta']['bottom'],1),
+         "empty_eta_is_hidden":await page.locator(".eta-hero").is_hidden(),
+         "fleet_after_stop_gap_px":round(initial['fleet']['top']-initial['stopLocation']['bottom'],1),
          "pin_fitted_after_tap":center_in_map,"popup_shows_bus":"77140" in popup,
          "horizontal_overflow":initial['scrollWidth']>initial['viewportWidth']+2,
          "errors":errors}
     print(json.dumps(res),flush=True)
-    assert res["map_header_one_line"] and res["map_header_no_overlap"] and res['fleet_eta_gap_px']>=7
+    assert res["map_header_one_line"] and res["map_header_no_overlap"]
+    assert res['empty_eta_is_hidden'] and 0 <= res['fleet_after_stop_gap_px'] <= 40
     assert res["pin_fitted_after_tap"] and res["popup_shows_bus"] and not res["horizontal_overflow"] and not errors
     await context.close()
 async def main():
