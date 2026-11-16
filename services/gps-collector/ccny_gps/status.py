@@ -116,11 +116,32 @@ def get_status(store: ObservationStore, now: datetime | None = None) -> dict:
             by_stop = {k:[] for k in ("125","135","marshak","145")}
             for row in rows:
                 bus = fresh_by_id[row["vehicleId"]]
+                # The student source publishes an earliest/latest window for
+                # some experimental forecasts. This is NOT an independently
+                # validated confidence interval. Only forward intact, sane
+                # source bounds; do not construct our own range here.
+                early = row.get("earliestAt")
+                late = row.get("latestAt")
+                try:
+                    estimate = datetime.fromisoformat(row["arrivalAt"].replace("Z", "+00:00"))
+                    early_dt = datetime.fromisoformat(early) if early else None
+                    late_dt = datetime.fromisoformat(late) if late else None
+                    valid_bounds = (
+                        early_dt is not None and late_dt is not None
+                        and all(dt.tzinfo for dt in (estimate, early_dt, late_dt))
+                        and early_dt <= estimate <= late_dt
+                        and (late_dt - early_dt).total_seconds() <= 7200
+                        and (late_dt - early_dt).total_seconds() >= 0
+                    )
+                except (ValueError, TypeError, OverflowError):
+                    valid_bounds = False
                 by_stop[row["stopId"]].append({
                     "vehicleId":row["vehicleId"],
                     "busName":bus["busName"],
                     "direction":row["direction"],
                     "arrivalAt":row["arrivalAt"],
+                    "earliestAt":early if valid_bounds else None,
+                    "latestAt":late if valid_bounds else None,
                     "providerPredictionsEnabled":row["providerPredictionsEnabled"],
                 })
             source_arrivals = {
