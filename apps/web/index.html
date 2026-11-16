@@ -10,10 +10,10 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin>
-  <link rel="stylesheet" href="/compact-v12.css">
+  <link rel="stylesheet" href="/compact-v13.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script type="module" src="/compact-v16.js"></script>
+  <script type="module" src="/compact-v17.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#tracker">Skip to tracker</a>
@@ -84,6 +84,15 @@
             <div><span class="eta-label">Next shuttle</span><strong id="eta-value">—</strong></div>
             <div class="eta-description" id="eta-description">Waiting for verified GPS data</div>
           </div>
+          <section class="arrival-panel" id="arrival-panel" aria-label="Experimental third-party shuttle arrivals" hidden>
+            <div class="arrival-toolbar">
+              <strong>Upcoming arrivals <span class="arrival-experimental">Experimental</span></strong>
+              <label class="arrival-clock"><input type="checkbox" id="arrival-clock"> Clock times</label>
+            </div>
+            <div class="arrival-rows" id="arrival-rows" role="list" aria-live="polite"></div>
+            <button class="arrival-more" type="button" id="arrival-more" hidden>Show more arrivals</button>
+            <p class="arrival-provenance" id="arrival-provenance">Student tracker estimates · Not verified</p>
+          </section>
           <div class="vehicle-list" id="vehicle-list" aria-live="polite"><div class="no-buses">No confirmed arrivals yet.</div></div>
           <div class="stop-actions">
             <a id="stop-directions" class="text-action" href="https://www.google.com/maps/search/?api=1&amp;query=Post+Office+West+125th+Street+Manhattan" target="_blank" rel="noopener noreferrer">Find pickup area ↗</a>
