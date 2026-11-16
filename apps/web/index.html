@@ -10,10 +10,10 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin>
-  <link rel="stylesheet" href="/compact-v11.css">
+  <link rel="stylesheet" href="/compact-v12.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script type="module" src="/compact-v15.js"></script>
+  <script type="module" src="/compact-v16.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#tracker">Skip to tracker</a>
@@ -36,10 +36,10 @@
   <main class="shell dashboard" id="tracker">
     <section class="tracker-top" aria-label="Shuttle service status">
       <div class="tracker-heading"><h1>Shuttle tracker</h1><span class="tracker-sub">City College of New York</span></div>
-      <div class="live-line" id="live-line" aria-live="polite">
+      <div class="live-line sr-only" id="live-line" aria-live="polite">
         <span class="live-signal" aria-hidden="true"></span>
         <span id="live-message">Connecting to GPS…</span>
-        <a href="https://cloud.samsara.com/o/4010168/fleet/viewer/FJMjrX1YlqCqlGxIKkXY" target="_blank" rel="noopener noreferrer">Official live map ↗</a>
+
       </div>
     </section>
 
@@ -80,7 +80,7 @@
             <span class="eta-badge" id="eta-status">ETA unavailable</span>
           </div>
           <p class="stop-location" id="stop-location">Post Office · between St. Nicholas &amp; Morningside Ave</p>
-          <div class="eta-hero">
+          <div class="eta-hero" id="eta-hero" hidden>
             <div><span class="eta-label">Next shuttle</span><strong id="eta-value">—</strong></div>
             <div class="eta-description" id="eta-description">Waiting for verified GPS data</div>
           </div>
@@ -111,14 +111,13 @@
     </section>
 
     <footer class="footer">
-      <div class="footer-left"><span>Mon–Fri · 6:30 AM–10 PM*</span><span class="footer-separator">·</span><span>Independent student project</span></div>
+      <div class="footer-left"><span>Class days · 6:30 AM–10 PM</span><span class="footer-separator">·</span><span>Independent student project</span></div>
       <div class="footer-right">
         <a href="https://www.ccny.cuny.edu/about/gettingthere" target="_blank" rel="noopener noreferrer">Service details ↗</a>
         <a href="https://ccnyshuttlebus.com/" target="_blank" rel="noopener noreferrer">Student tracker ↗</a>
         <a href="https://github.com/cmahmud/ccny-shuttle" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
       </div>
     </footer>
-    <p class="service-footnote">*During CCNY class days. Times and stops may change. No GPS-based arrival predictions are currently offered.</p>
   </main>
 </body>
 </html>
