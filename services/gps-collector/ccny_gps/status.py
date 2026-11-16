@@ -151,6 +151,59 @@ def get_status(store: ObservationStore, now: datetime | None = None) -> dict:
                 "generatedAt":max(row["generatedAt"] for row in rows),
                 "stops":by_stop,
             }
+    # Separately expose a *small, explicitly unverified* set of the student's
+    # source-generated projections when a bus GPS fix is old. These are NOT
+    # GPS-derived ETAs, not live arrivals, and never substitute coordinates.
+    # Avoid the student's extrapolated multi-loop schedule: one future slot
+    # per known bus per stop, at most 2 rows, 45-minute horizon, >90s lead.
+    source_projections = None
+    if is_public_relay and chosen["transportState"] == "healthy":
+        old_by_id = {v["vehicleId"]:v for v in chosen["vehicles"]
+                     if v["freshness"] != "fresh"
+                     and 30 < v["gpsAgeSeconds"] <= 300}
+        if old_by_id:
+            projected = {k:[] for k in ("125","135","marshak","145")}
+            seen = {k:set() for k in projected}
+            issued = []
+            for row in store.current_source_arrivals(now, max_age_seconds=45):
+                bus = old_by_id.get(row["vehicleId"])
+                stop = row["stopId"]
+                if bus is None or stop not in projected:
+                    continue
+                if row["vehicleId"] in seen[stop] or len(projected[stop]) >= 2:
+                    continue
+                try:
+                    at = datetime.fromisoformat(row["arrivalAt"].replace("Z","+00:00"))
+                    lead = (at - now).total_seconds()
+                    if not 90 <= lead <= 2700:
+                        continue
+                    early = datetime.fromisoformat(row["earliestAt"].replace("Z","+00:00")) if row.get("earliestAt") else None
+                    late = datetime.fromisoformat(row["latestAt"].replace("Z","+00:00")) if row.get("latestAt") else None
+                    good_range = (early is not None and late is not None
+                                  and all(dt.tzinfo for dt in (at,early,late))
+                                  and early <= at <= late
+                                  and 0 <= (late-early).total_seconds() <= 7200)
+                except (ValueError,TypeError,OverflowError):
+                    continue
+                seen[stop].add(row["vehicleId"])
+                projected[stop].append({
+                    "vehicleId":row["vehicleId"],
+                    "busName":bus["busName"],
+                    "direction":row["direction"],
+                    "arrivalAt":row["arrivalAt"],
+                    "earliestAt":row["earliestAt"] if good_range else None,
+                    "latestAt":row["latestAt"] if good_range else None,
+                    "providerPredictionsEnabled":row["providerPredictionsEnabled"],
+                    "gpsAgeSeconds":bus["gpsAgeSeconds"],
+                })
+                issued.append(row["generatedAt"])
+            if issued:
+                source_projections = {
+                    "source":"student_public", "experimental":True,
+                    "calibrated":False, "mode":"projection_without_fresh_gps",
+                    "generatedAt":max(issued),"stops":projected,
+                    "liveGPSConfirmed":False,
+                }
     return {
         "generatedAt": iso_z(now),
         "source": source,
@@ -169,6 +222,7 @@ def get_status(store: ObservationStore, now: datetime | None = None) -> dict:
         "observationsStored": store.count_observations(),
         "vehicles": chosen["vehicles"],
         "sourceArrivalEstimates": source_arrivals,
+        "sourceUnverifiedProjections": source_projections,
         "independentlyVerified": not is_public_relay and live(chosen),
         "warning": (
             "Third-party Samsara-derived GPS reports; not independently verified. "
