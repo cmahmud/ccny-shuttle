@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 const read = (name) => readFileSync(new URL("../" + name, import.meta.url), "utf8");
 const html = read("index.html");
-const css = read("compact-v11.css");
-const js = read("compact-v15.js");
+const css = read("compact-v12.css");
+const js = read("compact-v16.js");
 const worker = read("service-worker.js");
 
 test("single compact tracker has no large hero or multi-page navigation", () => {
@@ -39,10 +39,10 @@ test("page has one map and compact responsive mobile layout", () => {
 
 test("HTML references deployed versioned assets", () => {
   assert.match(html, /\/compact-v11\.css/);
-  assert.match(html, /\/compact-v15\.js/);
+  assert.match(html, /\/compact-v16\.js/);
   assert.match(js, /\.\/compact-core-v10\.js/);
-  assert.match(html, /\/service-worker\.js|\/compact-v15\.js/);
-  for (const file of ["compact-v11.css","compact-v15.js","compact-core-v10.js"]) {
+  assert.match(html, /\/service-worker\.js|\/compact-v16\.js/);
+  for (const file of ["compact-v12.css","compact-v16.js","compact-core-v10.js"]) {
     assert.ok(worker.includes("/" + file),file);
   }
 });
@@ -64,7 +64,7 @@ test("no guesses about ETAs or fake bus positions", () => {
 
 test("offline caching never stores current GPS", () => {
   assert.match(worker, /url\.pathname\.startsWith\("\/api\/"\)/);
-  assert.match(worker, /ccny-smart-shuttle-compact-v15/);
+  assert.match(worker, /ccny-smart-shuttle-compact-v16/);
   assert.doesNotMatch(worker,/APP_SHELL[^;]*\/api\/v1\/vehicles/s);
 });
 
@@ -76,7 +76,7 @@ test("documented official tracker, service hours, and directions present", () =>
 });
 
 test("active module dependencies use JS served with the correct MIME type", () => {
-  assert.match(html, /\/compact-v15\.js/);
+  assert.match(html, /\/compact-v16\.js/);
   assert.match(js, /\.\/compact-core-v10\.js/);
   assert.doesNotMatch(js, /from \"[^\"]+\.mjs\"/);
   assert.doesNotMatch(worker, /\/compact-core\.mjs/);
@@ -157,4 +157,23 @@ test("map defaults to full route overview while preserving manual bus focus", ()
   assert.match(js,/map\.getBounds\(\)/);
   assert.match(js,/\$\("map-reset"\)\.addEventListener\("click", fitRouteOverview\)/);
   assert.match(js,/routeStopMarkers\.set\(key,marker\)/);
+});
+
+
+test("quiet UI hides uncalibrated empty ETA panel without removing accessible status or source", () => {
+  assert.match(html, /id="eta-hero" hidden/);
+  assert.match(css, /\.eta-hero\[hidden\]\{display:none!important\}/);
+  assert.match(html, /id="live-line" aria-live="polite"/);
+  assert.match(css, /\.tracker-top \.live-line\.sr-only/);
+  assert.match(js, /"Buses on route"/);
+  assert.match(html, /id="top-status"/);
+  assert.match(html, /id="service-advisory"/);
+  assert.match(html, /id="map-route-source"/);
+});
+
+test("map buttons hide only when disabled, leaving active map controls accessible", () => {
+  assert.match(css, /\.map-actions \.icon-button:disabled\{display:none\}/);
+  assert.match(html, /id="map-history"/);
+  assert.match(html, /id="map-buses"/);
+  assert.match(js, /focusBusOnMap/);
 });
