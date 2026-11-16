@@ -1,0 +1,196 @@
+"""Public CCNY shuttle tracker feed adapter (third-party GPS relay).
+
+Reads publicly available /tracker-data/feed responses emitted by an ordinary
+browser session on the student tracker, without replaying private URLs,
+collecting cookies or bypassing HTTP 403. The JSON payload is not Samsara's
+official feed, and must never be labeled independently verified GPS.
+"""
+from __future__ import annotations
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from math import isfinite
+from zoneinfo import ZoneInfo
+
+from .models import Observation
+
+SOURCE = "student_public"
+BASE_URL = "https://ccnyshuttlebus.com/"
+FEED_PATH = "/tracker-data/feed"
+NY = ZoneInfo("America/New_York")
+
+# Loose campus-area safety bounds; not exact stop coordinates.
+BOUNDS = (40.78, 40.86, -74.02, -73.88)
+MAX_FEED_AGE_SECONDS = 90
+MAX_FIX_AGE_SECONDS = 600
+MAX_VEHICLES = 25
+
+
+@dataclass(frozen=True)
+class PublicSnapshot:
+    observations: tuple[Observation, ...]
+    vehicle_details: tuple[tuple[str, str | None, str | None, str | None, str | None, datetime], ...]
+    benchmark_forecasts: tuple[tuple[str, str, str, datetime, datetime, datetime | None, datetime | None, bool], ...]
+    feed_generated_at: datetime
+    upstream_polled_at: datetime
+    source_state: str
+    vehicles_rejected: int
+
+
+def _milliseconds(value: object, name: str) -> datetime:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(value):
+        raise ValueError(f"{name} must be a valid Unix millisecond timestamp")
+    if value < 1_600_000_000_000 or value > 4_000_000_000_000:
+        raise ValueError(f"{name} must be Unix milliseconds, not seconds")
+    return datetime.fromtimestamp(value / 1000, timezone.utc)
+
+
+def parse_public_feed(payload: object, received_at: datetime) -> PublicSnapshot:
+    if received_at.tzinfo is None:
+        raise ValueError("Reception time must include timezone")
+    received_at = received_at.astimezone(timezone.utc)
+    if not isinstance(payload, dict) or not isinstance(payload.get("live"), dict):
+        raise ValueError("Student feed must contain a live object")
+    live = payload["live"]
+    generated = _milliseconds(live.get("generatedAt"), "generatedAt")
+    polled = _milliseconds(live.get("lastSuccessfulPoll"), "lastSuccessfulPoll")
+    age = (received_at - generated).total_seconds()
+    poll_age = (received_at - polled).total_seconds()
+    if not -20 <= age <= MAX_FEED_AGE_SECONDS:
+        raise ValueError("Student public feed response is stale or future-dated")
+    if poll_age < -20:
+        raise ValueError("Upstream GPS polling timestamp is future-dated")
+    # An old upstream GPS poll is not an HTTP transport failure. The public
+    # page may remain reachable while its GPS supplier is offline. Preserve
+    # the browser heartbeat with zero observations so this does not trigger
+    # repeated browser restarts or fabricate current bus positions.
+    upstream_current = poll_age <= 120
+    state = live.get("sourceState")
+    if not isinstance(state, str) or state not in (
+        "live", "delayed", "stale", "no_data", "unconfigured", "offline"
+    ):
+        raise ValueError("Unrecognized third-party source state")
+    reported = live.get("vehicles")
+    if not isinstance(reported, list) or len(reported) > MAX_VEHICLES:
+        raise ValueError("Malformed or oversized public vehicle list")
+    observations = []
+    details = []
+    rejected = 0
+    used = set()
+    for vehicle in reported:
+        if not isinstance(vehicle, dict):
+            rejected += 1
+            continue
+        try:
+            vid = vehicle["vehicleId"]
+            if not isinstance(vid, str) or not vid or len(vid) > 96:
+                raise ValueError("Invalid vehicle ID")
+            if vid in used:
+                raise ValueError("Duplicate vehicle ID")
+            lat = float(vehicle["lat"])
+            lon = float(vehicle["lon"])
+            if not (BOUNDS[0] < lat < BOUNDS[1] and BOUNDS[2] < lon < BOUNDS[3]):
+                raise ValueError("Location outside CCNY region")
+            observed = _milliseconds(vehicle.get("observedAt"), "observedAt")
+            observed_age = (received_at - observed).total_seconds()
+            if not -20 <= observed_age <= MAX_FIX_AGE_SECONDS:
+                raise ValueError("GPS observation expired or in future")
+            heading = vehicle.get("heading")
+            if heading is not None:
+                heading = float(heading)
+            obs = Observation(
+                source=SOURCE,
+                vehicle_id=vid,
+                latitude=lat,
+                longitude=lon,
+                observed_at=observed,
+                received_at=received_at,
+                heading_degrees=heading,
+                speed_mph=None,
+            )
+            observations.append(obs)
+            # Keep only short, source-asserted bus numbers, and known stop/status
+            # enums. All are metadata, not evidence of active service or ETA.
+            raw_name = vehicle.get("name")
+            bus_name = raw_name.strip() if isinstance(raw_name, str) else ""
+            bus_name = bus_name if bus_name.isascii() and bus_name.isdigit() and 1 <= len(bus_name) <= 3 else None
+            direction = vehicle.get("direction") if vehicle.get("direction") in ("NB", "SB") else None
+            reported_status = vehicle.get("status") if vehicle.get("status") in (
+                "moving", "standing", "standing_at_stop", "stopped",
+                "inactive", "unknown"
+            ) else None
+            next_stop = vehicle.get("nextStopId") if vehicle.get("nextStopId") in (
+                "125", "135", "marshak", "145"
+            ) else None
+            details.append((vid, bus_name, direction, reported_status, next_stop, observed))
+            used.add(vid)
+        except (TypeError, ValueError, OverflowError, KeyError):
+            rejected += 1
+
+    # Do not promote an upstream outage to 'live'. Previously recorded fixes
+    # stay in history but will age out of the live status API.
+    if state != "live" or not upstream_current:
+        observations.clear()
+        details.clear()
+    if state == "live" and not upstream_current:
+        state = "stale"
+
+    # Experimental student-site estimates are evidence for future backtests,
+    # NOT approved production ETAs. Do not expose these to the public API.
+    benchmark = []
+    estimates = payload.get("estimates")
+    source_enabled = live.get("predictionsEnabled") is True
+    if state == "live" and upstream_current and isinstance(estimates, dict):
+        try:
+            estimates_time = _milliseconds(estimates.get("generatedAt"), "estimates.generatedAt")
+        except (ValueError,OverflowError):
+            estimates_time = generated
+        if abs((received_at-estimates_time).total_seconds()) <= 90:
+            stops = estimates.get("stops")
+            if isinstance(stops, list):
+                known_vehicles = {v[0] for v in details}
+                for entry in stops[:8]:
+                    if not isinstance(entry,dict) or entry.get("stopId") not in (
+                        "125","135","marshak","145"
+                    ):
+                        continue
+                    stop = entry["stopId"]
+                    arrivals = entry.get("arrivals")
+                    if not isinstance(arrivals, list):
+                        continue
+                    for item in arrivals[:12]:
+                        if not isinstance(item, dict):
+                            continue
+                        try:
+                            vid = item.get("vehicleId")
+                            direction = item.get("direction")
+                            if vid not in known_vehicles or direction not in ("NB","SB"):
+                                continue
+                            arrival = _milliseconds(item.get("arrivalAt"),"arrivalAt")
+                            eta_seconds=(arrival-estimates_time).total_seconds()
+                            if not -120 <= eta_seconds <= 7200:
+                                continue
+                            def optional_time(key):
+                                value=item.get(key)
+                                if value is None:return None
+                                try:return _milliseconds(value,key)
+                                except (ValueError,OverflowError):return None
+                            early=optional_time("earliestAt")
+                            late=optional_time("latestAt")
+                            if early and early>arrival:early=None
+                            if late and late<arrival:late=None
+                            benchmark.append((stop,vid,direction,estimates_time,
+                                              arrival,early,late,source_enabled))
+                        except (ValueError,TypeError,OverflowError):
+                            continue
+    return PublicSnapshot(
+        tuple(observations), tuple(details), tuple(benchmark),
+        generated, polled, state, rejected
+    )
+
+
+def in_service_window(now: datetime) -> bool:
+    """Avoid crawling a closed service all night. Holidays can still close it."""
+    if now.tzinfo is None:
+        raise ValueError("Timezone-aware time required")
+    local = now.astimezone(NY)
+    return local.weekday() < 5 and (6 * 60 + 15 <= local.hour * 60 + local.minute <= 22 * 60 + 15)

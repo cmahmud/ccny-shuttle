@@ -1,0 +1,24 @@
+name: Public CCNY GPS source interface research
+on:
+  pull_request:
+    paths:
+      - "research/public-gps-browser-sources.mjs"
+      - ".github/workflows/public-gps-interface-research.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  public-source-interface:
+    runs-on: ubuntu-24.04 # Playwright 1.57 Chromium lacks Ubuntu 26.04 support
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install public-browser test runtime
+        run: |
+          npm install --no-save playwright@1.57.0
+          npx playwright install --with-deps chromium
+      - name: Inspect ordinary public viewer, no authentication or restricted traffic replay
+        run: node research/public-gps-browser-sources.mjs

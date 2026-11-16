@@ -1,0 +1,38 @@
+[Unit]
+Description=CCNY Shuttle third-party public browser GPS relay (beta)
+Wants=network-online.target
+After=network-online.target ccny-shuttle-status.service
+ConditionPathExists=/opt/ccny-shuttle/runtime/chromium-1228/chrome-linux/chrome
+StartLimitIntervalSec=10min
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=ccnyshuttle
+Group=ccnyshuttle
+WorkingDirectory=/var/lib/ccny-shuttle
+Environment=HOME=/var/lib/ccny-shuttle
+Environment=XDG_CACHE_HOME=/var/lib/ccny-shuttle/.cache
+Environment=PYTHONPATH=/opt/ccny-shuttle/services/gps-collector
+ExecStart=/opt/ccny-shuttle/venv/bin/python3 -m ccny_gps.student_public_browser --loop --db /var/lib/ccny-shuttle/gps.sqlite3 --browser-path /opt/ccny-shuttle/runtime/chromium-1228/chrome-linux/chrome
+Restart=on-failure
+RestartPreventExitStatus=77
+RestartSec=25
+TimeoutStartSec=60
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ReadWritePaths=/var/lib/ccny-shuttle
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+MemoryMax=1400M
+CPUQuota=100%
+TasksMax=256
+
+[Install]
+WantedBy=multi-user.target

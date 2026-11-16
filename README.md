@@ -95,3 +95,30 @@ Do not deploy demo data as live shuttle telemetry.
 ## Next step
 
 Run the Phase-0 investigation from a local development machine with browser tooling. Record sanitized conclusions in `research/samsara/`, then implement the appropriate collector adapter. See `AGENTS.md` for agent instructions when available.
+
+## Public beta (November 9, 2026)
+
+The independent mobile-first beta is reachable at **https://shuttle.syndrid.com**. A dedicated Nginx vhost serves the static web interface and proxies the read-only status endpoint to `127.0.0.1:8766`. The existing OmniRoute installation at `api.syndrid.com` uses **`127.0.0.1:23128`** and remains separate.
+
+- `apps/web`: destination selector, stop-area map, official shuttle links, honest no-GPS states and installable app shell.
+- `services/gps-collector`: credential-gated prototype with durable incremental storage, source-GPS freshness, transport-health separation and a local-only status API.
+- `docs/DEPLOYMENT.md`: verified infrastructure, health checks, CSS cache-versioning and rollback.
+
+**Update (November 9):** A limited **student-public GPS relay** is collecting real source-timestamped bus reports. It is **not independent Samsara telemetry**: the student's website relays GPS data it obtains from CCNY's tracker. Our site identifies the source as `GPS via student`, shows verified-fresh reports or explicitly delayed last-seen reports, and never fabricates bus positions or ETAs. Official API access and calibrated arrival predictions are still unavailable.
+
+Web tests: `node --test apps/web/tests/*.test.mjs`. Backend tests: `python3 -m unittest discover -s services/gps-collector/tests -v`.
+
+## Historical stop logging and ETA baseline
+
+The first historical ETA engine is in `services/eta-engine/` (development-only; not deployed to the public website). It provides:
+
+- Two-observation geofence-based inferred stop arrivals/departures, requiring separately **field-verified** boarding-point coordinates and shuttle-only GPS.
+- Idempotent SQLite persistence for stop events and completed directed travel legs.
+- Read-only replay of GPS history already captured by the authorized collector. No verified CCNY stop geofence configuration is bundled, so real event collection is **not yet running**.
+- Historical route-specific ETA time windows using recent samples and local New York commute-period context. Estimates become unavailable with inadequate history or expired GPS.
+- A paired comparison function for independently verified actual arrivals versus our predictions and **permitted** student-site ETA snapshots. This does not retrieve the student's restricted endpoints.
+- A clearly identified **synthetic demo** and offline tests with no GPS secrets or remote calls.
+
+Run: `PYTHONPATH=services/eta-engine python3 -m unittest discover -s services/eta-engine/tests -v`. See `services/eta-engine/README.md` for configuration requirements and limitations.
+
+**Integration policy:** Samsara/CCNY remains the preferred direct GPS source (not connected). The student-made tracker supplies a clearly attributed, third-party browser relay and remains an optional ETA benchmark. Both trackers depend on the same upstream, so this relay cannot independently back up a Samsara hardware outage. See `docs/PUBLIC_GPS_RELAY.md`.

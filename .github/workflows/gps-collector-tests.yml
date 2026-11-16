@@ -1,0 +1,34 @@
+name: GPS collector tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run synthetic-fixture unit tests (no network)
+        run: python -m unittest discover -s services/gps-collector/tests -v
+      - name: Run historical stop-event and ETA engine tests (synthetic, no network)
+        run: python -m unittest discover -s services/eta-engine/tests -v
+      - name: Check explicitly labeled historical baseline demo
+        run: python -m ccny_eta --synthetic-demo
+        env:
+          PYTHONPATH: services/eta-engine
+      - name: Set up Node for web integrity tests
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Run web integrity and GPS labeling tests
+        run: node --test apps/web/tests/*.test.mjs
