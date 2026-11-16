@@ -1,5 +1,6 @@
 """Browser smoke for compact CCNY academic schedule notices (synthetic time)."""
 import asyncio,json,os
+from datetime import datetime,timezone
 from playwright.async_api import async_playwright
 SITE=os.getenv('SHUTTLE_SITE_URL','http://127.0.0.1:9819/')
 CHROME=os.getenv('SHUTTLE_CHROMIUM_PATH','/opt/ccny-shuttle/runtime/chromium-1228/chrome-linux/chrome')
@@ -11,6 +12,8 @@ async def main():
       for width in (320,390,430,1365):
         context=await browser.new_context(viewport={'width':width,'height':844},is_mobile=width<760,has_touch=width<760,service_workers='block')
         page=await context.new_page()
+        # A deterministic clock prevents this one-day exception test expiring.
+        await page.clock.install(time=datetime(2026,11,11,17,0,tzinfo=timezone.utc))
         errors=[]
         page.on('pageerror',lambda e:errors.append(str(e)))
         await page.route('**/api/v1/vehicles',lambda route:route.fulfill(status=200,content_type='application/json',body=json.dumps({'source':'student_public','sourceState':'stale','transportState':'healthy','vehicles':[]})))
