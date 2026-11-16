@@ -47,8 +47,9 @@ async def verify(browser, label, width, height, mobile):
         await page.locator('button[data-stop="145"]').click()
         assert await page.locator("#stop-name").inner_text() == "145th Street"
         assert await page.locator('button[data-stop="145"]').get_attribute("aria-selected") == "true"
-        walk = await page.locator("#walk-selected").get_attribute("href")
-        assert walk and walk.startswith("https://www.google.com/maps/dir/"), "Missing walking directions"
+        pickup = await page.locator("#stop-directions").get_attribute("href")
+        assert pickup and pickup.startswith("https://www.google.com/maps/"), "Missing pickup-area link"
+        assert await page.locator('.trip-card').count()==0, "Walking routes panel should be removed"
         overflow = await page.evaluate(
             "document.documentElement.scrollWidth > window.innerWidth + 3"
         )
