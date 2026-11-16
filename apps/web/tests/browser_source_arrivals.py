@@ -44,13 +44,15 @@ async def check(browser,width):
     await page.locator('.arrival-row').first.wait_for(timeout=5000)
     assert await page.locator('.arrival-row').count()==3
     assert '17 min' in await page.locator('.arrival-row').first.inner_text()
-    assert await page.locator('#eta-status').inner_text()=='Experimental times'
+    assert await page.locator('.arrival-next-tag').count()==1
+    assert await page.locator('.arrival-next-tag').inner_text()=='NEXT'
+    assert await page.locator('.arrival-row.is-next').count()==1
+    clock=await page.locator('.arrival-clock-time').first.inner_text()
+    assert ('AM' in clock or 'PM' in clock),clock
     assert 'Unverified' in await page.locator('#arrival-provenance').inner_text()
     await page.locator('#arrival-more').click()
     assert await page.locator('.arrival-row').count()==6
-    await page.locator('#arrival-clock').check()
-    clock=await page.locator('.arrival-estimate').first.inner_text()
-    assert ('AM' in clock or 'PM' in clock) and 'min' not in clock,clock
+    assert await page.locator('.arrival-row.is-next').count()==1
     await page.locator('[data-stop="marshak"]').click()
     assert await page.locator('.arrival-row').count()==3
     assert 'To 145th St' in await page.locator('.arrival-row').first.inner_text()
@@ -60,18 +62,32 @@ async def check(browser,width):
     assert await page.locator('#eta-status').inner_text()=='ETA unavailable'
     await page.locator('[data-stop="125"]').click()
     assert await page.locator('.arrival-row').count()==3
-    assert 'AM' in await page.locator('.arrival-estimate').first.inner_text() or 'PM' in await page.locator('.arrival-estimate').first.inner_text()
     layout=await page.evaluate('''() => ({overflow:document.documentElement.scrollWidth>innerWidth+2,
       mapHeight:Math.round(document.querySelector('.map-wrapper').getBoundingClientRect().height),
       panelHeight:Math.round(document.querySelector('#stop-panel').getBoundingClientRect().height),
-      clockVisible:document.querySelector('#arrival-clock').offsetParent!==null,
+      nextHighlighted:document.querySelectorAll('.arrival-row.is-next').length,
+      clockVisible:document.querySelector('.arrival-clock-time').getBoundingClientRect().height>0,
       forecastRows:document.querySelectorAll('.arrival-row').length})''')
     assert not layout['overflow'] and not errors,(width,layout,errors)
     assert layout['clockVisible'] and layout['mapHeight']>200
-    # An upstream stale forecast must disappear, leaving truthful GPS status.
+    # Simulate real upstream delay: recent source times stay visible, labeled STALE.
     data['body']=payload(gps_live=False,forecasts_live=False)
     await page.evaluate('() => window.dispatchEvent(new Event("online"))')
-    await page.wait_for_timeout(1000)
+    await page.wait_for_timeout(700)
+    assert await page.locator('#arrival-panel').is_visible()
+    assert 'Stale' in await page.locator('#eta-status').inner_text()
+    assert await page.locator('.arrival-row.is-next').count()==0
+    assert await page.locator('.arrival-next-tag').count()==0
+    assert 'STALE' in await page.locator('#arrival-provenance').inner_text()
+    assert 'AM' in await page.locator('.arrival-clock-time').first.inner_text() or 'PM' in await page.locator('.arrival-clock-time').first.inner_text()
+    # A reload during the grace period recovers only the saved, labeled snapshot.
+    await page.reload(wait_until='domcontentloaded',timeout=30000)
+    await page.locator('.arrival-panel.is-stale').wait_for(state='visible',timeout=6000)
+    assert await page.locator('.arrival-row.is-next').count()==0
+    # Two-minute maximum measured from the SOURCE timestamp, not polling time.
+    await page.clock.fast_forward(125000)
+    await page.evaluate('() => window.dispatchEvent(new Event("online"))')
+    await page.wait_for_timeout(850)
     assert await page.locator('#arrival-panel').is_hidden()
     assert await page.locator('#eta-status').inner_text()=='ETA unavailable'
     print(json.dumps({'width':width,**layout,'errors':errors},ensure_ascii=False),flush=True)
