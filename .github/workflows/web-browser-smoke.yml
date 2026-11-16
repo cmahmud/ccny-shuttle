@@ -50,3 +50,7 @@ jobs:
         env:
           SHUTTLE_SITE_URL: http://127.0.0.1:9000/
         run: python apps/web/tests/browser_service_notice.py
+      - name: Verify experimental source arrivals, clock times and stale-data suppression
+        env:
+          SHUTTLE_SITE_URL: http://127.0.0.1:9000/
+        run: python apps/web/tests/browser_source_arrivals.py
