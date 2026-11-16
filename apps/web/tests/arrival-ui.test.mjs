@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {selectArrivalSlots,arrivalTimeLabel,arrivalDirectionLabel,eligibleArrivalSnapshot,STALE_ARRIVAL_GRACE_MS} from '../arrival-ui-v2.js';
+import {selectArrivalSlots,arrivalTimeLabel,arrivalDirectionLabel,eligibleArrivalSnapshot,STALE_ARRIVAL_GRACE_MS,sourceArrivalWindow,sourceBusStatus} from '../arrival-ui-v3.js';
 const now=Date.parse('2026-11-16T16:15:00Z');
 const at=m=>new Date(now+m*60000).toISOString();
 const sample={source:'student_public',experimental:true,calibrated:false,
@@ -48,4 +48,24 @@ test('source age and clock are independent of stale countdown reference', () => 
   const lastKnownAt=now-10000;
   assert.equal(arrivalTimeLabel(at(17),false,lastKnownAt),'18 min');
   assert.match(arrivalTimeLabel(at(17),true,now),/11:32\s*AM/);
+});
+
+test('source window uses only provided sane earliest/latest bounds',()=>{
+ const entry={arrivalAt:at(17),earliestAt:at(13),latestAt:at(22)};
+ assert.equal(sourceArrivalWindow(entry,now),'Source window 13–22 min');
+ assert.equal(sourceArrivalWindow({...entry,earliestAt:at(19)},now),null);
+ assert.equal(sourceArrivalWindow({...entry,latestAt:at(12)},now),null);
+ assert.equal(sourceArrivalWindow({...entry,earliestAt:null},now),null);
+ assert.equal(sourceArrivalWindow({...entry,latestAt:at(150)},now),null);
+});
+test('standing at stop and inactive are source reported, never inferred from absence',()=>{
+ const base={freshness:'fresh',observedAt:new Date(now-5000).toISOString()};
+ assert.deepEqual(sourceBusStatus({...base,reportedStatus:'standing_at_stop'},now),
+   {label:'Standing at stop',kind:'standing',live:true});
+ assert.deepEqual(sourceBusStatus({...base,reportedStatus:'inactive'},now),
+   {label:'Inactive (reported)',kind:'inactive',live:true});
+ assert.deepEqual(sourceBusStatus({...base,reportedStatus:null},now),
+   {label:'Status unknown',kind:'unknown',live:false});
+ assert.deepEqual(sourceBusStatus({...base,reportedStatus:'standing_at_stop',freshness:'stale'},now),
+   {label:'Last: at stop',kind:'standing',live:false});
 });
