@@ -58,3 +58,7 @@ jobs:
         env:
           SHUTTLE_SITE_URL: http://127.0.0.1:9000/
         run: python apps/web/tests/browser_source_status.py
+      - name: Verify transparent old-GPS projections, mixed GPS and removed walking panel
+        env:
+          SHUTTLE_SITE_URL: http://127.0.0.1:9000/
+        run: python apps/web/tests/browser_source_projection.py
