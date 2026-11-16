@@ -38,7 +38,7 @@ test("page has one map and compact responsive mobile layout", () => {
 });
 
 test("HTML references deployed versioned assets", () => {
-  assert.match(html, /\/compact-v11\.css/);
+  assert.match(html, /\/compact-v12\.css/);
   assert.match(html, /\/compact-v16\.js/);
   assert.match(js, /\.\/compact-core-v10\.js/);
   assert.match(html, /\/service-worker\.js|\/compact-v16\.js/);
