@@ -1,6 +1,6 @@
-const CACHE_NAME = "ccny-smart-shuttle-compact-v16";
+const CACHE_NAME = "ccny-smart-shuttle-compact-v17";
 const APP_SHELL = [
-  "/", "/index.html", "/compact-v12.css", "/compact-v16.js", "/compact-core-v10.js", "/route-data-v1.js", "/service-calendar-v1.js",
+  "/", "/index.html", "/compact-v13.css", "/compact-v17.js", "/compact-core-v10.js", "/route-data-v1.js", "/arrival-ui-v1.js", "/service-calendar-v1.js",
   "/favicon.svg", "/icon.svg", "/manifest.webmanifest"
 ];
 self.addEventListener("install", (event) => {
