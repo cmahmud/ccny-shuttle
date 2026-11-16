@@ -38,7 +38,7 @@ test("page has one map and compact responsive mobile layout", () => {
 });
 
 test("HTML references deployed versioned assets", () => {
-  assert.match(html, /\/compact-v14\.css/);
+  assert.match(html, /\/compact-v15\.css/);
   assert.match(html, /\/compact-v19\.js/);
   assert.match(js, /\.\/compact-core-v10\.js/);
   assert.match(html, /\/service-worker\.js|\/compact-v19\.js/);
@@ -187,7 +187,7 @@ test("source-only experimental arrivals have their own labeled panel and clock c
   assert.match(js,/sourceArrivalEstimates/);
   assert.match(js,/Experimental times/);
   assert.match(js,/Unverified estimates/);
-  assert.match(worker,/\/arrival-ui-v2\.js/);
+  assert.match(worker,/\/arrival-ui-v3\.js/);
 });
 
 test("arrival highlight, combined times, and stale warning never claim calibration", () => {
