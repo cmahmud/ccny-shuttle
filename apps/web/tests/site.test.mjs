@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 const read = (name) => readFileSync(new URL("../" + name, import.meta.url), "utf8");
 const html = read("index.html");
-const css = read("compact-v15.css");
-const js = read("compact-v19.js");
+const css = read("compact-v17.css");
+const js = read("compact-v21.js");
 const worker = read("service-worker.js");
 
 test("single compact tracker has no large hero or multi-page navigation", () => {
@@ -12,7 +12,8 @@ test("single compact tracker has no large hero or multi-page navigation", () => 
   assert.match(html, /id="stop-tabs"/);
   assert.match(html, /id="map"/);
   assert.match(html, /id="stop-panel"/);
-  assert.match(html, /id="destination-select"/);
+  assert.doesNotMatch(html, /id="destination-select"/);
+  assert.doesNotMatch(html, /trip-card|Going to campus\?|walk-selected|walk-137/);
   assert.doesNotMatch(html, /class="hero"/);
   assert.doesNotMatch(html, /#about|#stops|#how-it-works/);
 });
@@ -38,11 +39,11 @@ test("page has one map and compact responsive mobile layout", () => {
 });
 
 test("HTML references deployed versioned assets", () => {
-  assert.match(html, /\/compact-v15\.css/);
-  assert.match(html, /\/compact-v19\.js/);
+  assert.match(html, /\/compact-v17\.css/);
+  assert.match(html, /\/compact-v21\.js/);
   assert.match(js, /\.\/compact-core-v10\.js/);
-  assert.match(html, /\/service-worker\.js|\/compact-v19\.js/);
-  for (const file of ["compact-v15.css","compact-v19.js","compact-core-v10.js"]) {
+  assert.match(html, /\/service-worker\.js|\/compact-v21\.js/);
+  for (const file of ["compact-v17.css","compact-v21.js","compact-core-v10.js"]) {
     assert.ok(worker.includes("/" + file),file);
   }
 });
@@ -64,7 +65,7 @@ test("no guesses about ETAs or fake bus positions", () => {
 
 test("offline caching never stores current GPS", () => {
   assert.match(worker, /url\.pathname\.startsWith\("\/api\/"\)/);
-  assert.match(worker, /ccny-smart-shuttle-compact-v19/);
+  assert.match(worker, /ccny-smart-shuttle-compact-v21/);
   assert.doesNotMatch(worker,/APP_SHELL[^;]*\/api\/v1\/vehicles/s);
 });
 
@@ -72,11 +73,11 @@ test("documented official tracker, service hours, and directions present", () =>
   assert.match(html,/cloud\.samsara\.com\/o\/4010168/);
   assert.match(html,/6:30 AM–10 PM/);
   assert.match(html,/Independent student project/);
-  assert.match(js,/directionsUrl/);
+  assert.match(js,/stopAreaUrl/);
 });
 
 test("active module dependencies use JS served with the correct MIME type", () => {
-  assert.match(html, /\/compact-v19\.js/);
+  assert.match(html, /\/compact-v21\.js/);
   assert.match(js, /\.\/compact-core-v10\.js/);
   assert.doesNotMatch(js, /from \"[^\"]+\.mjs\"/);
   assert.doesNotMatch(worker, /\/compact-core\.mjs/);
@@ -207,4 +208,27 @@ test("uncertainty comes from source earliest/latest, never invented GPS",()=>{
   assert.match(js,/sourceBusStatus/);
   assert.match(css,/\.bus-condition/);
   assert.match(js,/Student GPS/);
+});
+
+test("gps-old third-party projections are not live ETAs",()=>{
+ assert.match(js,/sourceUnverifiedProjections/);
+ assert.match(js,/projection_without_fresh_gps/);
+ assert.match(js,/GPS-old projections/);
+ assert.match(js,/SOURCE PROJECTION/);
+ assert.match(js,/index===0 && !stale && !projected/);
+ assert.match(css,/\.arrival-panel\.is-projection/);
+});
+
+
+test("removed walking-routes panel and obsolete JavaScript handlers",()=>{
+  assert.doesNotMatch(html,/Going to campus\?|trip-card|walk-selected|walk-137|destination-select/);
+  assert.doesNotMatch(js,/updateWalkLinks|destination-select|walk-selected|walk-137/);
+  assert.match(css,/\.right-stack\{display:block/);
+  assert.match(css,/\.stop-card\{height:100%/);
+});
+test("mixed fresh GPS and GPS-old source estimates have per-row styling",()=>{
+  assert.match(js,/Mixed GPS quality/);
+  assert.match(js,/is-source-projection/);
+  assert.match(js,/entry\.isProjection/);
+  assert.match(css,/\.arrival-row\.is-source-projection/);
 });
