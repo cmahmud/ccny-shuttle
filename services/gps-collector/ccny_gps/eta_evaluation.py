@@ -19,6 +19,8 @@ from .eta_readiness import diagnose
 from .eta_shadow import METHOD_MEDIAN,METHOD_SPEED
 from .eta_shadow_backtest import backtest
 from .source_reliability import report as reliability_report
+from .eta_research import read_fixes
+from .eta_validation_audit import geofence_sensitivity
 
 
 def compile_report(source_db:str,shadow_db:str,now:datetime|None=None)->dict:
@@ -43,6 +45,12 @@ def compile_report(source_db:str,shadow_db:str,now:datetime|None=None)->dict:
         ).fetchone()[0]
     if days<7:
         reasons.append("Fewer than 7 observation calendar days")
+    observed_days=median["matchedCoverage"]["serviceDaysWithAtLeastFivePairs"]
+    if observed_days<5:
+        reasons.append("Fewer than 5 independent matched local service days with 5+ paired forecasts")
+    if any(median["matchedCoverage"]["byStop"][stop]["uniquePassages"]<10
+           for stop in ("125","marshak","145")):
+        reasons.append("Fewer than 10 matched GPS-proxy passages at one or more principal stops")
     if median["pairedSamples"] and (
         median["shadowMAEminutes"] is None or
         median["studentMAEminutes"] is None or
@@ -68,6 +76,7 @@ def compile_report(source_db:str,shadow_db:str,now:datetime|None=None)->dict:
             "replayModels":replay["metrics"],
             "replayPairedSpeedComparison":replay["pairedComparison"],
         },
+        "geofenceSensitivity":geofence_sensitivity(read_fixes(source_db)),
         "collectionHealth":collection_health,
         "sourceReliability24h":source_reliability,
         "matchedComparison":paired,
