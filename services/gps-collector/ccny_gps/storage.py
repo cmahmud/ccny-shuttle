@@ -77,6 +77,27 @@ class ObservationStore:
                 );
                 CREATE INDEX IF NOT EXISTS arrival_schedule_by_source
                     ON source_arrival_schedule(source,ingested_at);
+                -- Aggregate relay delivery outcomes. No GPS coordinates, raw
+                -- vehicle IDs, user identifiers, cookies or request bodies.
+                CREATE TABLE IF NOT EXISTS relay_health_samples (
+                    id INTEGER PRIMARY KEY,
+                    source TEXT NOT NULL,
+                    recorded_at TEXT NOT NULL,
+                    source_state TEXT NOT NULL,
+                    feed_age_s REAL NOT NULL,
+                    upstream_poll_age_s REAL NOT NULL,
+                    source_reported_vehicles INTEGER NOT NULL,
+                    parsed_vehicles INTEGER NOT NULL,
+                    accepted_fixes INTEGER NOT NULL,
+                    unchanged_fixes INTEGER NOT NULL,
+                    jump_rejections INTEGER NOT NULL,
+                    invalid_reports INTEGER NOT NULL,
+                    fresh_source_vehicles INTEGER NOT NULL,
+                    newest_vehicle_age_s REAL,
+                    oldest_vehicle_age_s REAL
+                );
+                CREATE INDEX IF NOT EXISTS relay_health_time ON relay_health_samples
+                    (source, recorded_at DESC);
                 CREATE TABLE IF NOT EXISTS vehicle_context_history (
                     source TEXT NOT NULL,
                     vehicle_id TEXT NOT NULL,
@@ -101,6 +122,56 @@ class ObservationStore:
                     PRIMARY KEY(source, vehicle_id)
                 );
             """)
+
+    def record_relay_health(self, record: dict, *, retention_days: int = 14) -> None:
+        """Store nonidentifying metrics for every accepted browser feed event.
+
+        This measures missing/stale data as well as accepted GPS; it is not a
+        vehicle location log. Keep a bounded retention and never block the
+        collector on a browser source outage.
+        """
+        expected=("source_reported_vehicles", "parsed_vehicles", "accepted_fixes",
+                  "unchanged_fixes", "jump_rejections", "invalid_reports",
+                  "fresh_source_vehicles")
+        at=record["recorded_at"]
+        if not isinstance(at,datetime) or at.tzinfo is None:
+            raise ValueError("Relay health timestamps must be aware")
+        if record["source"] not in ("student_public", "samsara"):
+            raise ValueError("Unrecognized relay source")
+        if record["source_state"] not in (
+            "live", "delayed", "stale", "offline", "no_data", "unconfigured"
+        ):
+            raise ValueError("Unrecognized source state")
+        if any(type(record[key]) is not int or record[key] < 0 for key in expected):
+            raise ValueError("Nonnegative integer health counts required")
+        if retention_days < 1 or retention_days > 60:
+            raise ValueError("Retention days out of bounds")
+        from datetime import timedelta
+        bounds=[]
+        for key in ("feed_age_s", "upstream_poll_age_s", "newest_vehicle_age_s",
+                    "oldest_vehicle_age_s"):
+            value=record.get(key)
+            if value is not None:
+                if not isinstance(value,(int,float)) or not 0 <= value <= 86400:
+                    raise ValueError("Invalid nonnegative health age")
+                value=round(float(value),1)
+            bounds.append(value)
+        # Retain 14 days by default; trim opportunistically, not every poll.
+        with self.conn:
+            self.conn.execute(
+                """INSERT INTO relay_health_samples(
+                  source, recorded_at, source_state, feed_age_s, upstream_poll_age_s,
+                  source_reported_vehicles, parsed_vehicles, accepted_fixes,
+                  unchanged_fixes, jump_rejections, invalid_reports,
+                  fresh_source_vehicles, newest_vehicle_age_s, oldest_vehicle_age_s)
+                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (record["source"],at.astimezone(timezone.utc).isoformat(),
+                 record["source_state"],bounds[0] or 0.0,bounds[1] or 0.0,
+                 *(record[key] for key in expected),bounds[2],bounds[3]))
+            if self.conn.execute("SELECT last_insert_rowid()").fetchone()[0] % 160 == 0:
+                cutoff=(at-timedelta(days=retention_days)).astimezone(timezone.utc)
+                self.conn.execute("DELETE FROM relay_health_samples WHERE recorded_at < ?",
+                                  (cutoff.isoformat(),))
 
     def bind_vehicle_scope(self, source: str, vehicle_ids: frozenset[str]) -> None:
         """Pin checkpoint to exact vehicle allowlist; never skip vehicles silently.
