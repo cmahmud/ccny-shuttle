@@ -59,6 +59,36 @@ class ObservationStore:
                 );
                 CREATE INDEX IF NOT EXISTS forecast_comparisons_by_time
                     ON forecast_comparisons(forecast_generated_at,vehicle_id,stop_id);
+                -- Latest upstream stop arrival schedule, distinct from the
+                -- sampled forecasts used for historical accuracy benchmarks.
+                CREATE TABLE IF NOT EXISTS source_arrival_schedule (
+                    source TEXT NOT NULL,
+                    stop_id TEXT NOT NULL,
+                    ordinal INTEGER NOT NULL,
+                    vehicle_id TEXT NOT NULL,
+                    direction TEXT NOT NULL,
+                    generated_at TEXT NOT NULL,
+                    arrival_at TEXT NOT NULL,
+                    earliest_at TEXT,
+                    latest_at TEXT,
+                    source_enabled INTEGER NOT NULL,
+                    ingested_at TEXT NOT NULL,
+                    PRIMARY KEY(source,stop_id,ordinal)
+                );
+                CREATE INDEX IF NOT EXISTS arrival_schedule_by_source
+                    ON source_arrival_schedule(source,ingested_at);
+                CREATE TABLE IF NOT EXISTS vehicle_context_history (
+                    source TEXT NOT NULL,
+                    vehicle_id TEXT NOT NULL,
+                    observed_at TEXT NOT NULL,
+                    bus_name TEXT,
+                    direction TEXT,
+                    reported_status TEXT,
+                    next_stop_id TEXT,
+                    PRIMARY KEY(source,vehicle_id,observed_at)
+                );
+                CREATE INDEX IF NOT EXISTS vehicle_context_history_by_time
+                    ON vehicle_context_history(observed_at,vehicle_id);
                 CREATE TABLE IF NOT EXISTS vehicle_context (
                     source TEXT NOT NULL,
                     vehicle_id TEXT NOT NULL,
@@ -132,6 +162,16 @@ class ObservationStore:
             for vehicle_id, bus_name, direction, reported_status, next_stop, source_time in vehicle_details:
                 if source_time.tzinfo is None:
                     raise ValueError("Source vehicle status time must be timezone-aware")
+                # Store the source status at EVERY accepted GPS fix. Previously
+                # only the latest status was retained, forcing historical ETA
+                # backtests to guess directions using future stops (leakage).
+                self.conn.execute(
+                    """INSERT OR IGNORE INTO vehicle_context_history
+                    (source,vehicle_id,observed_at,bus_name,direction,reported_status,next_stop_id)
+                    VALUES(?,?,?,?,?,?,?)""",
+                    (source,vehicle_id,source_time.astimezone(timezone.utc).isoformat(),
+                     bus_name,direction,reported_status,next_stop),
+                )
                 self.conn.execute(
                     """INSERT INTO vehicle_context
                     (source,vehicle_id,bus_name,direction,reported_status,next_stop_id,observed_at,updated_at)
@@ -148,6 +188,35 @@ class ObservationStore:
                      source_time.astimezone(timezone.utc).isoformat(),
                      polled_at.astimezone(timezone.utc).isoformat()),
                 )
+            # Replace the ephemeral upcoming arrival schedule on each accepted
+            # source poll (including an empty response). The research sample
+            # below is still deduplicated separately, preserving benchmark data.
+            if source == "student_public":
+                self.conn.execute(
+                    "DELETE FROM source_arrival_schedule WHERE source = ?", (source,)
+                )
+                per_stop = {}
+                for stop,vehicle_id,direction,predicted_at,arrival,early,late,enabled in benchmark_forecasts[:96]:
+                    if stop not in ("125","135","marshak","145") or direction not in ("NB","SB"):
+                        continue
+                    if any(t.tzinfo is None for t in (predicted_at,arrival)):
+                        continue
+                    ordinal=per_stop.get(stop,0)
+                    if ordinal >= 12:
+                        continue
+                    per_stop[stop] = ordinal+1
+                    self.conn.execute(
+                        """INSERT INTO source_arrival_schedule
+                        (source,stop_id,ordinal,vehicle_id,direction,generated_at,
+                         arrival_at,earliest_at,latest_at,source_enabled,ingested_at)
+                        VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+                        (source,stop,ordinal,vehicle_id,direction,
+                         predicted_at.astimezone(timezone.utc).isoformat(),
+                         arrival.astimezone(timezone.utc).isoformat(),
+                         early.astimezone(timezone.utc).isoformat() if early else None,
+                         late.astimezone(timezone.utc).isoformat() if late else None,
+                         int(enabled),polled_at.astimezone(timezone.utc).isoformat()),
+                    )
             # Cap storage to one source forecast per bus/stop/direction per
             # 30-second interval. This is for offline evidence, not the API.
             if source == "student_public":
@@ -253,6 +322,45 @@ class ObservationStore:
             )
             for r in rows
         ]
+
+    def current_source_arrivals(
+        self, now: datetime, source: str = "student_public", max_age_seconds: float = 45,
+    ) -> list[dict]:
+        """Fresh, ephemeral third-party forecasts, not our approved ETAs.
+
+        Never serve stale schedules, fabricated future cycles or old forecast
+        rows from the benchmark table. Caller further filters by fresh GPS IDs.
+        """
+        if now.tzinfo is None:
+            raise ValueError("now must be timezone-aware")
+        rows = self.conn.execute(
+            """SELECT stop_id,vehicle_id,direction,generated_at,arrival_at,
+                      earliest_at,latest_at,source_enabled,ingested_at
+               FROM source_arrival_schedule WHERE source=?
+               ORDER BY stop_id,arrival_at,ordinal LIMIT 96""",(source,)
+        ).fetchall()
+        result = []
+        for stop,vid,direction,generated,arrival,early,late,enabled,ingested in rows:
+            try:
+                issued=datetime.fromisoformat(generated)
+                received=datetime.fromisoformat(ingested)
+                arrives=datetime.fromisoformat(arrival)
+                if any(t.tzinfo is None for t in (issued,received,arrives)):
+                    continue
+                age=max((now-issued).total_seconds(),(now-received).total_seconds())
+                lead=(arrives-now).total_seconds()
+                if age < -10 or age > max_age_seconds or not -30 <= lead <= 7200:
+                    continue
+                result.append({
+                    "stopId":stop,"vehicleId":vid,"direction":direction,
+                    "generatedAt":issued.astimezone(timezone.utc).isoformat().replace("+00:00","Z"),
+                    "arrivalAt":arrives.astimezone(timezone.utc).isoformat().replace("+00:00","Z"),
+                    "earliestAt":early,"latestAt":late,
+                    "providerPredictionsEnabled":bool(enabled),
+                })
+            except (ValueError,TypeError,OverflowError):
+                continue
+        return result
 
     def count_forecast_comparisons(self) -> int:
         return self.conn.execute("SELECT COUNT(*) FROM forecast_comparisons").fetchone()[0]
