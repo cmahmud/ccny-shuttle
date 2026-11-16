@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 const read = (name) => readFileSync(new URL("../" + name, import.meta.url), "utf8");
 const html = read("index.html");
-const css = read("compact-v13.css");
-const js = read("compact-v17.js");
+const css = read("compact-v14.css");
+const js = read("compact-v18.js");
 const worker = read("service-worker.js");
 
 test("single compact tracker has no large hero or multi-page navigation", () => {
@@ -39,10 +39,10 @@ test("page has one map and compact responsive mobile layout", () => {
 
 test("HTML references deployed versioned assets", () => {
   assert.match(html, /\/compact-v13\.css/);
-  assert.match(html, /\/compact-v17\.js/);
+  assert.match(html, /\/compact-v18\.js/);
   assert.match(js, /\.\/compact-core-v10\.js/);
-  assert.match(html, /\/service-worker\.js|\/compact-v17\.js/);
-  for (const file of ["compact-v13.css","compact-v17.js","compact-core-v10.js"]) {
+  assert.match(html, /\/service-worker\.js|\/compact-v18\.js/);
+  for (const file of ["compact-v14.css","compact-v18.js","compact-core-v10.js"]) {
     assert.ok(worker.includes("/" + file),file);
   }
 });
@@ -64,7 +64,7 @@ test("no guesses about ETAs or fake bus positions", () => {
 
 test("offline caching never stores current GPS", () => {
   assert.match(worker, /url\.pathname\.startsWith\("\/api\/"\)/);
-  assert.match(worker, /ccny-smart-shuttle-compact-v17/);
+  assert.match(worker, /ccny-smart-shuttle-compact-v18/);
   assert.doesNotMatch(worker,/APP_SHELL[^;]*\/api\/v1\/vehicles/s);
 });
 
@@ -76,7 +76,7 @@ test("documented official tracker, service hours, and directions present", () =>
 });
 
 test("active module dependencies use JS served with the correct MIME type", () => {
-  assert.match(html, /\/compact-v17\.js/);
+  assert.match(html, /\/compact-v18\.js/);
   assert.match(js, /\.\/compact-core-v10\.js/);
   assert.doesNotMatch(js, /from \"[^\"]+\.mjs\"/);
   assert.doesNotMatch(worker, /\/compact-core\.mjs/);
@@ -181,10 +181,20 @@ test("map buttons hide only when disabled, leaving active map controls accessibl
 
 test("source-only experimental arrivals have their own labeled panel and clock control",()=>{
   assert.match(html,/id="arrival-panel"/);
-  assert.match(html,/id="arrival-clock"/);
+  assert.doesNotMatch(html,/id="arrival-clock"/);
+  assert.match(html,/Minutes \+ clock time/);
   assert.match(html,/id="arrival-more"/);
   assert.match(js,/sourceArrivalEstimates/);
   assert.match(js,/Experimental times/);
   assert.match(js,/Unverified estimates/);
   assert.match(worker,/\/arrival-ui-v1\.js/);
+});
+
+test("arrival highlight, combined times, and stale warning never claim calibration", () => {
+  assert.match(js,/arrival-next-tag/);
+  assert.match(js,/arrival-clock-time/);
+  assert.match(js,/STALE_ARRIVAL_GRACE_MS/);
+  assert.match(js,/Last predicted/);
+  assert.match(css,/\.arrival-row\.is-next/);
+  assert.match(css,/\.arrival-panel\.is-stale/);
 });
