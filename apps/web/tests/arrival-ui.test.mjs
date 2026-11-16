@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {selectArrivalSlots,arrivalTimeLabel,arrivalDirectionLabel} from '../arrival-ui-v1.js';
+import {selectArrivalSlots,arrivalTimeLabel,arrivalDirectionLabel,eligibleArrivalSnapshot,STALE_ARRIVAL_GRACE_MS} from '../arrival-ui-v2.js';
 const now=Date.parse('2026-11-16T16:15:00Z');
 const at=m=>new Date(now+m*60000).toISOString();
 const sample={source:'student_public',experimental:true,calibrated:false,
@@ -33,4 +33,19 @@ test('direction text uses established stop route names',()=>{
   assert.equal(arrivalDirectionLabel('NB','marshak'),'To 145th St');
   assert.equal(arrivalDirectionLabel('SB','marshak'),'To 125th St');
   assert.equal(arrivalDirectionLabel('NB','125'),'Northbound');
+});
+
+test('stale source snapshots have a strict 120-second grace, never an extended live window', () => {
+  assert.equal(STALE_ARRIVAL_GRACE_MS,120000);
+  assert.deepEqual(selectArrivalSlots(sample,'125',now+70000),[]);
+  const stale=selectArrivalSlots(sample,'125',now+70000,STALE_ARRIVAL_GRACE_MS);
+  assert.ok(stale.length>0);
+  assert.equal(eligibleArrivalSnapshot(sample,now+119999,STALE_ARRIVAL_GRACE_MS),false);
+  assert.deepEqual(selectArrivalSlots(sample,'125',now+120000,STALE_ARRIVAL_GRACE_MS),[]);
+  assert.equal(eligibleArrivalSnapshot({...sample,source:'other'},now,STALE_ARRIVAL_GRACE_MS),false);
+});
+test('source age and clock are independent of stale countdown reference', () => {
+  const lastKnownAt=now-10000;
+  assert.equal(arrivalTimeLabel(at(17),false,lastKnownAt),'18 min');
+  assert.match(arrivalTimeLabel(at(17),true,now),/11:32\s*AM/);
 });
