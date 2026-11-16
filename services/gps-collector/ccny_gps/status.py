@@ -103,6 +103,33 @@ def get_status(store: ObservationStore, now: datetime | None = None) -> dict:
 
     source = chosen["source"]
     is_public_relay = source == "student_public"
+    # Publicly shown *student-site* predictions are not verified arrival times.
+    # Only expose a bounded, source-attributed snapshot when source transport
+    # and the corresponding source-reported vehicles are both fresh.
+    source_arrivals = None
+    if is_public_relay and live(chosen):
+        fresh_by_id = {v["vehicleId"]:v for v in chosen["vehicles"]
+                       if v["freshness"] == "fresh"}
+        rows = [r for r in store.current_source_arrivals(now)
+                if r["vehicleId"] in fresh_by_id]
+        if rows:
+            by_stop = {k:[] for k in ("125","135","marshak","145")}
+            for row in rows:
+                bus = fresh_by_id[row["vehicleId"]]
+                by_stop[row["stopId"]].append({
+                    "vehicleId":row["vehicleId"],
+                    "busName":bus["busName"],
+                    "direction":row["direction"],
+                    "arrivalAt":row["arrivalAt"],
+                    "providerPredictionsEnabled":row["providerPredictionsEnabled"],
+                })
+            source_arrivals = {
+                "source":"student_public",
+                "experimental":True,
+                "calibrated":False,
+                "generatedAt":max(row["generatedAt"] for row in rows),
+                "stops":by_stop,
+            }
     return {
         "generatedAt": iso_z(now),
         "source": source,
@@ -120,6 +147,7 @@ def get_status(store: ObservationStore, now: datetime | None = None) -> dict:
         "transportState": chosen["transportState"],
         "observationsStored": store.count_observations(),
         "vehicles": chosen["vehicles"],
+        "sourceArrivalEstimates": source_arrivals,
         "independentlyVerified": not is_public_relay and live(chosen),
         "warning": (
             "Third-party Samsara-derived GPS reports; not independently verified. "
