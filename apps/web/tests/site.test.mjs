@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 const read = (name) => readFileSync(new URL("../" + name, import.meta.url), "utf8");
 const html = read("index.html");
-const css = read("compact-v17.css");
+const css = read("compact-v17.css") + "\n" + read("transit-v1.css");
 const js = read("compact-v21.js");
 const worker = read("service-worker.js");
 
@@ -40,10 +40,11 @@ test("page has one map and compact responsive mobile layout", () => {
 
 test("HTML references deployed versioned assets", () => {
   assert.match(html, /\/compact-v17\.css/);
+  assert.match(html, /\/transit-v1\.css/);
   assert.match(html, /\/compact-v21\.js/);
   assert.match(js, /\.\/compact-core-v10\.js/);
   assert.match(html, /\/service-worker\.js|\/compact-v21\.js/);
-  for (const file of ["compact-v17.css","compact-v21.js","compact-core-v10.js"]) {
+  for (const file of ["compact-v17.css","transit-v1.css","compact-v21.js","compact-core-v10.js"]) {
     assert.ok(worker.includes("/" + file),file);
   }
 });
@@ -65,7 +66,7 @@ test("no guesses about ETAs or fake bus positions", () => {
 
 test("offline caching never stores current GPS", () => {
   assert.match(worker, /url\.pathname\.startsWith\("\/api\/"\)/);
-  assert.match(worker, /ccny-smart-shuttle-compact-v21/);
+  assert.match(worker, /ccny-smart-shuttle-transit-v1/);
   assert.doesNotMatch(worker,/APP_SHELL[^;]*\/api\/v1\/vehicles/s);
 });
 

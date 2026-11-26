@@ -4,11 +4,13 @@ from datetime import datetime,timedelta,timezone
 from playwright.async_api import async_playwright
 SITE=os.getenv('SHUTTLE_SITE_URL','http://127.0.0.1:9826/')
 CHROME=os.getenv('SHUTTLE_CHROMIUM_PATH')
+# A normal service weekday; tests must not depend on CI wall-clock hours.
+FIXTURE_NOW=datetime(2026,11,17,17,0,tzinfo=timezone.utc)
 
 def fmt(dt):return dt.isoformat().replace('+00:00','Z')
 
 def scenario(projection=True,gps_age=155,generated_age=6):
-    now=datetime.now(timezone.utc)
+    now=FIXTURE_NOW
     bus=[{'vehicleId':'synthetic-88','busName':'88','latitude':40.81844,'longitude':-73.94949,
        'observedAt':fmt(now-timedelta(seconds=gps_age)),'gpsAgeSeconds':gps_age,
        'freshness':'stale','reportedStatus':'standing_at_stop','reportedDirection':'NB',
@@ -33,6 +35,7 @@ async def check(browser,width):
     ctx=await browser.new_context(viewport={'width':width,'height':844},is_mobile=width<760,
        has_touch=width<760,service_workers='block')
     page=await ctx.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+    await page.clock.install(time=FIXTURE_NOW)
     data={'body':scenario()}
     await page.route('**/api/v1/vehicles',lambda route:route.fulfill(status=200,
       content_type='application/json',body=json.dumps(data['body'])))
@@ -65,7 +68,7 @@ async def check(browser,width):
     assert await page.locator('#arrival-panel').is_hidden(),width
     # Mixed condition: one bus has fresh GPS while the other has an old fix.
     mixed=scenario()
-    now=datetime.now(timezone.utc)
+    now=FIXTURE_NOW
     mixed['sourceState']='live'
     mixed['vehicles'].append({
        'vehicleId':'synthetic-89','busName':'89','latitude':40.819,'longitude':-73.948,
