@@ -4,9 +4,11 @@ from datetime import datetime,timedelta,timezone
 from playwright.async_api import async_playwright
 SITE=os.getenv('SHUTTLE_SITE_URL','http://127.0.0.1:9822/')
 CHROME=os.getenv('SHUTTLE_CHROMIUM_PATH')
+# A normal service weekday; tests must not depend on CI wall-clock hours.
+FIXTURE_NOW=datetime(2026,11,17,17,0,tzinfo=timezone.utc)
 
 def payload(gps_live=True,forecasts_live=True):
-    now=datetime.now(timezone.utc)
+    now=FIXTURE_NOW
     fmt=lambda d:d.isoformat().replace('+00:00','Z')
     buses=[
       {'vehicleId':'synthetic-88','busName':'88','latitude':40.81844,'longitude':-73.94949,
@@ -39,6 +41,7 @@ async def check(browser,width):
     ctx=await browser.new_context(viewport={'width':width,'height':844},is_mobile=width<760,
       has_touch=width<760,service_workers='block')
     page=await ctx.new_page()
+    await page.clock.install(time=FIXTURE_NOW)
     errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
     data={'body':payload()}
     await page.route('**/api/v1/vehicles',lambda route:route.fulfill(status=200,
