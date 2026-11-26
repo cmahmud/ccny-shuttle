@@ -1,0 +1,87 @@
+/* Transit-board skin. Preserve existing state, accessibility and map contracts. */
+:root{--ink:#202226;--navy:#202226;--purple:#5634b6;--muted:#555b64;--edge:#dededb;--bg:#f8f8f6;--light:#f0edf8;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.header-inner{min-height:60px}
+.brand-mark{background:none;color:var(--purple);border-radius:0;width:29px;height:29px}
+.brand-text,.brand-text strong{color:var(--ink);font-weight:700;letter-spacing:-.025em}
+.beta{font-weight:600;color:#555b64;border:0;padding:0 0 0 3px;letter-spacing:.03em}
+.header-official{color:var(--ink);background:none;border:1px solid #c7c8c5;border-radius:3px;font-size:12px;font-weight:600}
+.header-official:hover{background:#efefec;color:var(--ink)}
+.status-pill,.status-pill.is-live,.status-pill.is-delayed,.status-pill.is-afterhours{padding:5px 0;background:transparent;border:0;border-radius:0;font-size:12px;font-weight:600;gap:6px}
+.dashboard{padding-top:18px}
+.tracker-heading h1{font-size:20px;letter-spacing:-.025em;font-weight:650}
+.stop-tabs{gap:0;border-bottom:1px solid #d5d6d3;padding:0;margin-bottom:16px;flex-wrap:nowrap}
+.stop-tab,.stop-tab.is-selected{background:transparent;border:0;border-bottom:3px solid transparent;border-radius:0;color:#555b64;box-shadow:none;min-height:40px;padding:8px 15px}
+.stop-tab.is-selected{border-bottom-color:var(--purple);color:var(--purple)}
+.stop-tab:hover{background:#efefec}
+.stop-tab .tab-label{font-size:13px;font-weight:650;letter-spacing:0}
+.main-grid{gap:20px;grid-template-columns:minmax(0,1.45fr) minmax(320px,1fr);align-items:start}
+.map-card,.stop-card{border-radius:3px;box-shadow:none;border-color:#d6d7d3}
+.map-card{height:clamp(505px,calc(100dvh - 260px),680px)}
+.card-bar{height:44px;padding-inline:12px;border-bottom:1px solid var(--edge)}
+.card-bar-title strong{font-weight:650;font-size:13px}
+.map-indicator{display:none}
+.map-actions .icon-button{border-radius:3px;color:#383b43;background:white;border-color:#d9d9d6;font-weight:600;font-size:11px}
+.map-actions .icon-button[aria-pressed="true"]{background:#edeaf6;border-color:#bdb2db;color:var(--purple)}
+.map-note{border-radius:2px;box-shadow:none;font-size:10px;color:#444952;background:#fffffff0}
+.map-bottom{font-size:10px;color:#575c65;border-top:1px solid var(--edge)}
+#map-update{font-weight:500;color:#53575f}
+.stop-card{padding:18px;height:auto;min-height:0}
+.eyebrow{display:none}
+.stop-card h2{font-size:26px;letter-spacing:-.035em;font-weight:650;margin:0;line-height:1.2}
+.stop-location{font-size:12px;color:#555b64;margin:6px 0 17px}
+.eta-badge{font-size:11px;border-radius:0;background:none;color:#65676e;padding:4px 0;font-weight:550}
+.eta-badge.is-estimate{background:none;color:#855b16}
+.arrival-toolbar{margin-bottom:6px;padding-bottom:9px;border-bottom:1px solid #d6d7d3;align-items:baseline}
+.arrival-toolbar>strong{font-size:14px;color:var(--ink);font-weight:650}
+.arrival-experimental{font-size:10px;background:none;color:#855b16;font-weight:550;padding:0;border-radius:0}
+.arrival-format-label{font-size:11px;color:#555b64;font-weight:500}
+.arrival-rows{gap:0}
+.arrival-row{border:0;border-bottom:1px solid #e2e2df;border-radius:0;background:white;min-height:61px;padding:10px 0;box-shadow:none}
+.arrival-bus strong{font-size:14px;font-weight:650;color:#25282e}
+.arrival-bus small{font-size:11px;color:#555b64}
+.arrival-row.is-next{border:0;border-left:3px solid var(--purple);border-bottom:1px solid #e2e2df;border-radius:0;background:#f3f0f8;box-shadow:none;padding:10px}
+.arrival-next-tag{background:none;color:var(--purple);font-weight:700;font-size:10px;padding:0;border-radius:0}
+.arrival-time-stack{gap:2px}
+.arrival-estimate{font-size:23px;font-weight:650;letter-spacing:-.035em;color:#176442}
+.arrival-row.is-next .arrival-estimate{color:var(--purple)}
+.arrival-clock-time,.arrival-row.is-next .arrival-clock-time{font-size:12px;color:#505660;font-weight:500}
+.arrival-source-window{font-size:10px;color:#555b64;font-weight:500;white-space:normal}
+.arrival-provenance{font-size:11px;color:#555b64;margin-top:9px;font-weight:500}
+.arrival-more,.text-action{font-size:12px;color:var(--purple);font-weight:600}
+.arrival-panel.is-stale .arrival-row,.arrival-panel.is-projection .arrival-row,.arrival-panel.has-mixed-projections .arrival-row.is-source-projection,.arrival-row.is-source-projection{background:#fffbf2;border:0;border-left:2px solid #c08b30;border-bottom:1px solid #e6deca;border-radius:0;padding:10px;box-shadow:none}
+.arrival-panel.is-stale .arrival-estimate,.arrival-panel.is-projection .arrival-estimate,.arrival-row.is-source-projection .arrival-estimate{color:#805712}
+.arrival-gps-warning{font-size:10px;color:#805712;font-weight:600}
+.fleet-section-label{font-size:12px;font-weight:650;color:#444952}
+.bus-row,.bus-row-button{padding:10px 0;font-size:12px;border-bottom-color:#e2e2df;background:transparent}
+.bus-row strong{font-size:13px;color:#25282e;font-weight:650}
+.bus-row small,.bus-context,.bus-age{font-size:11px;color:#555b64}
+.bus-row-button:hover,.bus-row-button:focus-visible{background:#f3f3f0}
+.bus-condition{font-size:10px;border-radius:2px;font-weight:600}
+.historical-bus-button{background:none;border:0;border-bottom:1px solid #e2e2df;border-radius:0;box-shadow:none;padding:10px 0;margin:0;color:#555b64}
+.historical-bus-button:hover,.historical-bus-button:focus-visible{background:#f3f3f0}
+.historical-bus-button .historical-time{font-size:11px;color:#555b64}
+.historical-view{background:none;border:0;color:var(--purple);border-radius:0;font-size:11px;padding:6px;font-weight:600}
+.fleet-section-label.historical-heading,.fleet-disclaimer,.stop-warning{color:#555b64;font-size:11px}
+.fleet-section-label.historical-heading::before{box-shadow:none}
+.no-buses{background:#f5f5f2;border:0;border-radius:0;color:#555b64;font-size:12px}
+.stop-actions{margin-top:14px;border-top-color:#d6d7d3}
+.stop-warning{max-width:175px}
+.service-advisory{border-radius:2px;border:0;border-left:3px solid #656e84;background:#efefed;color:#22262b}
+.footer{border-top:1px solid #dededb;padding-top:12px;font-size:11px;color:#555b64}
+.footer a{color:var(--purple);font-weight:550}
+@media(max-width:1050px){.main-grid{grid-template-columns:minmax(0,1.25fr) minmax(310px,1fr);gap:12px}}
+@media(max-width:760px){
+ .header-inner{min-height:54px}.dashboard{padding-top:12px}.tracker-heading h1{font-size:17px}
+ .stop-tabs{margin-bottom:10px;overflow-x:auto}.stop-tab,.stop-tab.is-selected{min-height:40px;padding:8px 10px}
+ .stop-tab .tab-label{font-size:12px}.main-grid{gap:12px;align-items:stretch}
+ .stop-card{padding:13px}.stop-card h2{font-size:23px}.map-card{height:clamp(300px,44dvh,420px)}
+ .stop-location{margin:6px 0 12px}.arrival-row{min-height:57px}.arrival-estimate{font-size:21px}
+ .map-note{max-width:calc(100% - 74px);font-size:9px}.footer{padding-top:10px}
+}
+@media(max-width:450px){
+ .brand-mark{width:22px;height:22px}.brand-mark svg{width:21px;height:21px}.brand-text{font-size:15px}
+ .header-official{font-size:10px;padding:7px}.status-pill,.status-pill.is-live,.status-pill.is-delayed,.status-pill.is-afterhours{font-size:10px}
+ .stop-tab,.stop-tab.is-selected{padding:8px 8px}.stop-tab .tab-label{font-size:12px}
+ .arrival-toolbar>strong{font-size:13px}.arrival-clock-time{font-size:11px}.stop-warning{max-width:125px;font-size:10px}
+ .map-actions .icon-button{font-size:10px;padding:7px 6px}.bus-row small,.bus-age,.bus-context{font-size:10px}
+}
