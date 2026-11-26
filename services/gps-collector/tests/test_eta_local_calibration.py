@@ -1,6 +1,6 @@
 import unittest
 from datetime import datetime,timedelta,timezone
-from ccny_gps.eta_local_calibration import evaluate_local_calibration
+from ccny_gps.eta_local_calibration import evaluate_local_calibration, predicted_lead_band
 BASE=datetime(2026,11,2,15,tzinfo=timezone.utc)
 
 def data(days=9):
@@ -31,3 +31,32 @@ class LocalCalibrationTests(unittest.TestCase):
     def test_invalid_and_empty(self):
         r=evaluate_local_calibration([{},dict(data()[0],shadowSignedErrorMinutes=float('nan'))]);self.assertEqual(r['overall']['n'],0)
         with self.assertRaises(ValueError):evaluate_local_calibration([],min_local_events=0)
+
+
+class IssuanceFeatureTests(unittest.TestCase):
+    def rows(self):
+        rows=data()
+        for row in rows:
+            done=datetime.fromisoformat(row['actualPass'])
+            row['shadowArrivalAt']=(done+timedelta(minutes=row['shadowSignedErrorMinutes'])).isoformat()
+        return rows
+    def test_actual_horizon_is_not_a_model_feature(self):
+        rows=self.rows()
+        a=evaluate_local_calibration(rows,prospective=True)
+        b=evaluate_local_calibration([dict(r,horizon=10) for r in rows],prospective=True)
+        self.assertEqual(a['overall'],b['overall'])
+        self.assertEqual(a['selectionCounts'],b['selectionCounts'])
+        self.assertEqual(a['byPredictedLeadBand'],b['byPredictedLeadBand'])
+        self.assertGreater(a['overall']['n'],0)
+        self.assertFalse(a['publicPredictionAllowed'])
+        self.assertEqual(a['conditioningFeature'],'issued_predicted_lead_band')
+    def test_missing_issued_prediction_does_not_use_actual_arrival(self):
+        self.assertEqual(evaluate_local_calibration(data(),prospective=True)['overall']['n'],0)
+    def test_lead_boundaries(self):
+        self.assertEqual(predicted_lead_band(BASE,BASE),'0-4')
+        self.assertEqual(predicted_lead_band(BASE,BASE+timedelta(minutes=4)),'4-8')
+        self.assertEqual(predicted_lead_band(BASE,BASE+timedelta(minutes=8)),'8+')
+        self.assertIsNone(predicted_lead_band(BASE,BASE-timedelta(seconds=1)))
+    def test_past_outcomes_remain_required(self):
+        rows=self.rows(); prior=evaluate_local_calibration(rows[:48],prospective=True)
+        self.assertEqual(prior['overall']['n'],0)
