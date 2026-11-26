@@ -19,6 +19,7 @@ import statistics
 from .eta_research import Pass,gps_passes,read_fixes
 from .eta_shadow import METHOD_MEDIAN,METHOD_SPEED
 from .eta_calibration import walk_forward_calibration
+from .eta_local_calibration import evaluate_local_calibration
 from .eta_validation_audit import matched_coverage
 from .eta_direction_context import read_event_directions
 
@@ -259,6 +260,7 @@ def evaluate_pairs(
             "uniquePassageEvents":event_uncertainty["events"],
             "eventClusterUncertainty":event_uncertainty,
             "walkForwardCandidate":walk_forward_calibration(subset),
+            "localCalibrationCandidate":evaluate_local_calibration(subset),
             "pairedMAEDifferenceMin":round(statistics.mean(
                 r["shadowAbsErrorMinutes"]-r["studentAbsErrorMinutes"]
                 for r in subset),3) if subset else None,
