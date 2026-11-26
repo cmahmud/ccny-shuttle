@@ -136,6 +136,19 @@ def _event_cluster_bootstrap(rows:list[dict],resamples:int=1200)->dict:
             'interpretation':'positive difference means our shadow forecast was less accurate; GPS-geofence outcomes only'}
 
 
+class _ForecastWindow:
+    """Index forecast timestamps once; preserve input ordering for tie cases."""
+    def __init__(self, rows):
+        self.rows = sorted(enumerate(rows), key=lambda pair: pair[1]["at"])
+        self.times = [row["at"] for _, row in self.rows]
+
+    def near(self, when, seconds):
+        delta = timedelta(seconds=seconds)
+        lo = bisect.bisect_left(self.times, when-delta)
+        hi = bisect.bisect_right(self.times, when+delta)
+        return [row for _, row in sorted(self.rows[lo:hi], key=lambda pair: pair[0])]
+
+
 def evaluate_pairs(
     events:list[Pass],shadow:list[dict],student:list[dict],
     horizons:tuple[int,...]=HORIZONS,window_seconds:int=75,
@@ -147,6 +160,9 @@ def evaluate_pairs(
         by_shadow[row["vehicle"],row["stop"]].append(row)
     for row in student:
         by_student[row["vehicle"],row["stop"],row["direction"]].append(row)
+    shadow_windows={key:_ForecastWindow(rows) for key,rows in by_shadow.items()}
+    student_windows={key:_ForecastWindow(rows) for key,rows in by_student.items()}
+    empty_window=_ForecastWindow([])
     comparisons=[]
     shadow_eligible=collections.Counter()
     event_directions=event_directions or {}
@@ -160,9 +176,8 @@ def evaluate_pairs(
         for horizon in horizons:
             desired=event.timestamp-timedelta(minutes=horizon)
             candidates=[
-                row for row in by_shadow[event.vehicle_id,event.stop_id]
-                if abs((row["at"]-desired).total_seconds())<=window_seconds
-                and row["observedAt"]<=row["at"]<=event.timestamp
+                row for row in shadow_windows.get((event.vehicle_id,event.stop_id),empty_window).near(desired,window_seconds)
+                if row["observedAt"]<=row["at"]<=event.timestamp
                 and row["method"] in (METHOD_MEDIAN,METHOD_SPEED)
                 and (event_direction is None or row["direction"]==event_direction)
             ]
@@ -173,11 +188,8 @@ def evaluate_pairs(
                         key=lambda r:abs((r["at"]-desired).total_seconds()))
                 shadow_eligible[method]+=1
                 others=[
-                    r for r in by_student[event.vehicle_id,event.stop_id,
-                                           own["direction"]]
-                    if abs((r["at"]-own["at"]).total_seconds())
-                       <=MAX_PAIR_TIMESTAMP_DIFFERENCE_SECONDS
-                    and r["at"]<=event.timestamp
+                    r for r in student_windows.get((event.vehicle_id,event.stop_id,own["direction"]),empty_window).near(own["at"],MAX_PAIR_TIMESTAMP_DIFFERENCE_SECONDS)
+                    if r["at"]<=event.timestamp
                 ]
                 if not others:continue
                 student_choice=min(others,key=lambda r:abs(
