@@ -223,6 +223,7 @@ def evaluate_pairs(
                 comparisons.append({
                     "method":method,"horizon":horizon,
                     "forecastAt":own["at"].isoformat(),
+                    "shadowArrivalAt":own["eta"].isoformat(),
                     "shadowSignedErrorMinutes":(own["eta"]-event.timestamp).total_seconds()/60,
                     "studentPredictionEnabled":student_choice["enabled"],
                     "shadowAbsErrorMinutes":own_err,
@@ -261,6 +262,7 @@ def evaluate_pairs(
             "eventClusterUncertainty":event_uncertainty,
             "walkForwardCandidate":walk_forward_calibration(subset),
             "localCalibrationCandidate":evaluate_local_calibration(subset),
+            "issuanceFeatureCandidate":evaluate_local_calibration(subset,prospective=True),
             "pairedMAEDifferenceMin":round(statistics.mean(
                 r["shadowAbsErrorMinutes"]-r["studentAbsErrorMinutes"]
                 for r in subset),3) if subset else None,
