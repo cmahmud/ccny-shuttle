@@ -153,7 +153,7 @@ class _ForecastWindow:
 def evaluate_pairs(
     events:list[Pass],shadow:list[dict],student:list[dict],
     horizons:tuple[int,...]=HORIZONS,window_seconds:int=75,
-    event_directions:dict[tuple,str]|None=None
+    event_directions:dict[tuple,str]|None=None, profile_asof:datetime|None=None
 )->dict:
     by_shadow:dict[tuple,list[dict]]=collections.defaultdict(list)
     by_student:dict[tuple,list[dict]]=collections.defaultdict(list)
@@ -290,7 +290,10 @@ def evaluate_pairs(
                 x["shadowWins"] for x in subset),3) if subset else None,
             "byHorizon":per_horizon,
         }
+    from .eta_live_trial import fit_profiles
+    profiles=fit_profiles([r for r in comparisons if r["method"]==METHOD_SPEED],profile_asof) if profile_asof else {}
     return {
+        "liveCalibrationProfiles":profiles,
         "status":"No claim of superiority; matched GPS-proxy outcomes only",
         "passageEvents":len(events),
         "shadowStoredForecasts":len(shadow),
@@ -309,11 +312,15 @@ def evaluate_pairs(
     }
 
 
-def report(gps_db:str,shadow_db:str)->dict:
-    events=gps_passes(read_fixes(gps_db))
+def report(gps_db:str,shadow_db:str,now:datetime|None=None)->dict:
+    fixes=read_fixes(gps_db)
+    events=gps_passes(fixes)
     directions=read_event_directions(gps_db,events)
     result=evaluate_pairs(events,read_shadow_rows(shadow_db),
-                          read_student_rows(gps_db),event_directions=directions)
+                          read_student_rows(gps_db),event_directions=directions,profile_asof=now)
+    if now is not None:
+        from .eta_live_trial import score_trial
+        result['liveTrial']=score_trial(shadow_db,events,directions,fixes,now)
     result['attributedPassages']=len(directions)
     result['directionAttribution']='source moving context before GPS passage only; missing directions stay conservatively ambiguous'
     return result
