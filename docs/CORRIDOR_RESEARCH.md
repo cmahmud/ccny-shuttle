@@ -1,0 +1,8 @@
+# Private GPS continuity and corridor travel-time audit
+
+Adds `corridorResearch` to the private 30-minute ETA report. No public ETA, source, collector or geometry changes. Data originate from the student feed, not independent traffic telemetry.
+
+November 27: observed 45–1800 second inter-fix intervals beginning within 65m of stop zones: 125th 97 (median 60s), 135th 9 (59.4s), Marshak 1,259 (299.5s), 145th 83 (56.5s). These are sampled intervals, not independent outages. Location during the interval and the cause are unknown. Reported standing-at-stop GPS offsets from nearest known stop have p90 30.0/22.4/17.4/42.8m respectively. 145th merits field verification; do not alter geometry based on shared-source observations alone.
+
+## Benchmark
+Adjacent permitted stop-passage pairs, 50–2700s, observed entrances and no inter-fix gap over 120s. Prior completed and already-received legs in 14-day window only; minimum 12 legs and three NY local days. Compare corridor median, 60% hour-conditioned median (+/-2h) blended with global median when supported, and 50% recent median (90min, >=3 legs) blended with hour model. Destination assumed known retrospectively. Same-sample comparison with fallback; includes stop dwell, not measured congestion or actual passenger arrivals. 880 accepted legs; 196 uncertain entries and 195 GPS-gap exclusions. 754 scored legs, 10 local days, 126 warmup abstentions. MAE 0.716/0.665/0.662min respectively. 667 hour-supported and 461 recent-supported cases. Sparse Marshak outbound coverage. Not a student-source head-to-head comparison. Research only; public prediction NOT_APPROVED; live worker unchanged. 162 backend tests pass; full staged report about 13s.

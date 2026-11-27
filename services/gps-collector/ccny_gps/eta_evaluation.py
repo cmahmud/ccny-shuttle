@@ -22,6 +22,7 @@ from .source_reliability import report as reliability_report
 from .eta_research import read_fixes
 from .eta_validation_audit import geofence_sensitivity
 from .eta_dwell import report as dwell_report
+from .eta_corridor_research import report as corridor_report
 
 
 def compile_report(source_db:str,shadow_db:str,now:datetime|None=None)->dict:
@@ -80,6 +81,7 @@ def compile_report(source_db:str,shadow_db:str,now:datetime|None=None)->dict:
         "geofenceSensitivity":geofence_sensitivity(read_fixes(source_db)),
         "collectionHealth":collection_health,
         "stationaryDepartureResearch":dwell_report(source_db,now),
+        "corridorResearch":corridor_report(source_db,now),
         "sourceReliability24h":source_reliability,
         "matchedComparison":paired,
     }
