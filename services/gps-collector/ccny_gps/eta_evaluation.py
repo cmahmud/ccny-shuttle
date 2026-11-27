@@ -26,7 +26,7 @@ from .eta_validation_audit import geofence_sensitivity
 def compile_report(source_db:str,shadow_db:str,now:datetime|None=None)->dict:
     now=now or datetime.now(timezone.utc)
     replay=backtest(source_db)
-    paired=paired_report(source_db,shadow_db)
+    paired=paired_report(source_db,shadow_db,now)
     collection_health=diagnose(source_db,shadow_db,now)
     source_reliability=reliability_report(source_db,now)
     median=paired["paired"][METHOD_MEDIAN]

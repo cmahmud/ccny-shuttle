@@ -26,7 +26,7 @@ class ShadowPipelineTests(unittest.TestCase):
                 old=[]
                 start=NOW-timedelta(days=1,hours=3)
                 for i in range(14):
-                    t=start+timedelta(minutes=40*i)
+                    t=start-timedelta(days=i%3)+timedelta(minutes=40*i)
                     for delay,stop in ((0,"125"),(5,"135"),(6,"marshak"),(13,"145")):
                         lat,lon=ROUTE.stops[stop]
                         old.append(obs(t+timedelta(minutes=delay),lat,lon))
@@ -41,7 +41,11 @@ class ShadowPipelineTests(unittest.TestCase):
                 )
             finally:
                 store.close()
-            predictions=snapshot_forecasts(db,ROUTE,now=NOW)
+            trial=[]
+            predictions=snapshot_forecasts(db,ROUTE,now=NOW,trial_candidates=trial)
+            self.assertEqual(len(trial),1)
+            self.assertEqual(trial[0].stop_id,"marshak")
+            self.assertEqual(trial[0].model,"downstream_time_of_day_v1")
             self.assertEqual(len(predictions),1,predictions)
             pred=predictions[0]
             self.assertEqual(pred.stop_id,"135")

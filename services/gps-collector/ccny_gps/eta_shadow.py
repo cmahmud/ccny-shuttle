@@ -205,7 +205,7 @@ class ShadowStore:
 
 
 def snapshot_forecasts(source_db:str,catalog:RouteCatalog,
-                       now:datetime|None=None)->list[Prediction]:
+                       now:datetime|None=None, *, trial_candidates=None, profile=None)->list[Prediction]:
     now=now or datetime.now(timezone.utc)
     store=ObservationStore(source_db)
     try:
@@ -235,9 +235,16 @@ def snapshot_forecasts(source_db:str,catalog:RouteCatalog,
                 for x in store.recent_observations("student_public",
                                                     fix.vehicle_id,limit=8)
             ]
-            results.extend(make_predictions(
-                fix,bus["reportedDirection"],bus["reportedStatus"],
-                bus.get("reportedNextStopId"),segments,catalog,now,recent))
+            base=make_predictions(fix,bus["reportedDirection"],bus["reportedStatus"],
+                bus.get("reportedNextStopId"),segments,catalog,now,recent)
+            results.extend(base)
+            if trial_candidates is not None and base:
+                from .eta_live_trial import calibrate,downstream
+                speed=next((p for p in base if p.model==METHOD_SPEED),None)
+                adjusted=calibrate(speed,profile or {}) if speed else None
+                if adjusted:trial_candidates.append(adjusted)
+                longer=downstream(adjusted or speed or base[0],segments,catalog)
+                if longer:trial_candidates.append(longer)
         return results
     finally:store.close()
 
@@ -260,11 +267,21 @@ def main():
         if args.status:
             print(json.dumps(shadow.status(),indent=2))
             return 0
+        from .eta_live_trial import SCHEMA as TRIAL_SCHEMA
+        shadow.conn.executescript(TRIAL_SCHEMA)
         routes=RouteCatalog.load()
         while True:
             try:
-                pending=snapshot_forecasts(args.db,routes)
+                from .eta_live_trial import load_profiles,record_trial
+                trial=[]
+                profile=load_profiles(str(Path(args.shadow_db).with_name("eta-evaluation.json")))
+                pending=snapshot_forecasts(args.db,routes,trial_candidates=trial,profile=profile)
                 stored=shadow.record(pending)
+                try:
+                    trial_stored=record_trial(shadow.conn,args.db,trial)
+                    if trial_stored:LOG.info("Private live ETA trial: %d new forecasts",trial_stored)
+                except (OSError,sqlite3.Error,ValueError) as exc:
+                    LOG.warning("Private trial write error: %s",type(exc).__name__)
                 if pending or args.once:
                     print(json.dumps({"evaluated":len(pending),
                                       "newShadowForecasts":stored,
